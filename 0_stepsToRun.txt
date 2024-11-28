@@ -1,0 +1,8 @@
+1> Variables are provided to the 0_INPUT.txt
+2> CLick 0_RunAnalysis.exe
+3> Get load-displacement curve from Step_Load_results.txt and Step_Displacement_results.txt
+4> Draw curve in 0z_Load-Disp_Example1 (Excel)
+
+
+------------>Build "0_RunAnalysis.exe"<---------------
+Use Visual Studio to build the file 0_sourceCodeFOr.txt

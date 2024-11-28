@@ -1,0 +1,6372 @@
+C	$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$  
+C	                         DEM for Concrete      
+C     ************************ DEM_MMA*********************************
+      
+
+      MODULE DEM_MMA
+      PARAMETER (MAXNNODC=6500,            !MAX NUMBER OF NODAL POINTS FOR CONC
+     *           MAXNNODS=800,             !MAX NUMBER OF NODAL POINTS FOR STEEL 
+     *           MAXNNODT=(MAXNNODC+MAXNNODS),  !MAX NUMBER OF NODAL POINTS TOTA
+     *           MAXNCELE=8000,                 !MAX NUMBER OF ELEMENTS FOR CONC
+     *           MAXNSPG=11000,                 !MAX NUMBER OF SPRINGS FOR CONC
+     *           MAXISTEEL=50,                  !MAX NUMBER OF STEEL BARS +FRP
+     *           TOTALELE=(MAXNCELE+MAXISTEEL), 
+     *           MAXNEB=200,                    !MAX NUMBER OF ELEMENTS FOR EACH 
+     *           MAXNSELE=1000,                 !MAX NUMBER OF STEEL ELEMENTS
+     *           MAXNNST=(MAXNSELE+MAXISTEEL),  !MAX NUMBER OF NODAL POINTS FOR 
+     *           MAXNSPGLI=MAXNNST,             !MAX NUMBER OF BOND SPRINGS
+     *           MAXNELE=(MAXNCELE+MAXNSELE),   !MAX NUMBER OF ELEMENTS FOR CONC
+     *           MAXNMAT=10,                    !MAX NUMBER OF MATERIALS TYPES
+     *           MAXNSE=1000,                     !MAX NUMBER OF SUPPORTED ELEMENTS 
+     *           MAXNLE=1000,                     !MAX NUMBER OF LOADED ELEMENTS
+     *           MAXTK=80000000,                !MAX SIZE OF STIFFNESS MATRIEX      
+     *           Io=5,                          !FOR INPUT FILE
+     *     	   Lp3=8,                         
+     *           Lp4=4,                         !FOR MATRIX FILE
+     *	       Lp5=3,                         !FOR BREAKSPG FILE
+     *           Lp6=10,                        
+     *           Lp7=11,                        !MODEL DATA FOR MATERIAL PROPERTY INPUT
+     *           Lp8=12,                        !FOR MATERIAL PROPERTY INPUT
+     *           Lp9=13,                        !FOR MATERIAL PROPERTY OUTOUT
+     *           Lp10=14,                       !FILE OF DETERIORATED E
+     *           Lp11=15,                       !FILE OF DETERIORATED FT 
+     *           Lp12=16,                       !FILE OF DETERIORATED FS
+     *           Lp13=17,                       !FILE OF DETERIORATED GF
+     *           Lp124=18,                       !FILE OF CRACK WIDTH xlo
+     *           Lp1241=181,                       !FILE OF CRACK WIDTH ylo
+     *           Lp1242=182,                       !FILE OF CRACK WIDTH Xglo
+     *           Lp1243=183,                       !FILE OF CRACK WIDTH Yglo
+     *           LP15=19,                       !FILE OF DETERIORATED FC
+     *           Lp17=21,                       !visual2
+     *           lp18=22,                       !displacement
+     *           lp19=23,                       !output_steel
+     *           lp20=200,                       !result 
+     *           lp201=201,                       !result
+     *           lp202=202,                       !result
+     *           lp21=25,                       !analysis_conditoin 
+     *           lp22=26,                       !output_elmstress 
+     *           lp23=27,                       !initial material property 
+     *           lp31=28,
+     *           lp32=29,
+     *           lp33=30,
+     *           lp34=31,
+     *           lp375=375,                      !Concrete spring strain
+     *           lp376=376,                      !Concrete spring stress
+     *           lp377=377,                      !Concrete spring average xcoordinate 
+     *           lp378=378,                      !Concrete spring average ycoordinate 
+     *           lp35=35,                       !Total load 
+     *           lp36=36,                       !Displacement at loaded point
+     *           VARI=0.0D0,                    !FLAG FOR CONCRETE TENSILE STREG
+     *           FMT=1.0D0)                     ! FLG FOR FAILURE MODE TYPE FOR
+      
+
+      CHARACTER(10) STOP1                       !FOR PROGRAM STOP
+
+      END MODULE DEM_MMA
+
+C     ************************ MODULE DEM_GEN1  *********************************
+      MODULE DEM_GEN1
+         USE DEM_MMA
+
+	CHARACTER TITLE*80               
+	INTEGER  NNOD, NNST, NCELE, NSELE, NELE, NMAT, 
+     *         NSPGLI, ISTEEL, NRIGIDBODY,
+     *     NSELE1,NSELE12,NSELE13,NSELE15,NSELE4,NSELE41,NSELE42,
+     *     NSLI1,NSLI12,NSLI13,NSLI15,NSLI4,NSLI41,NSLI42, N,ielem,
+     *     nelem, using_deteriorated_poperty 
+      
+      integer scale_factor 
+      integer MAXNSTEP    
+      integer MAXNITERATION1  
+      integer MAXNITERATION2 
+      integer nos2,nos3,nos5 
+      integer nbound_ele,bound_ele(1000),flag_bound_ele      
+      integer nbound_sp,bound_sp(1000),flag_bound_sp         
+      
+      INTEGER IELST(MAXISTEEL), 
+     *        NOD(15,MAXNCELE), KIND0(MAXNCELE), 
+     *        NST(2, MAXNSELE), KIND01(MAXNSELE),
+     *        NLIN(MAXNSPGLI),  KIND02(MAXNSPGLI),
+     *        KUG(3), NUG(3, MAXNSE),
+     *        KDG(3), NDG(3, MAXNLE)
+      
+      real modelheight,modelwidth
+      
+      real convergence   
+      
+     
+      DOUBLEPRECISION RBODY(2,MAXNCELE), COD(2,MAXNNODT)               
+     
+      REAL EG(MAXNMAT),EEG(MAXNELE),EP(MAXNMAT),BODY(MAXNMAT)
+     * , TH(MAXNMAT),RI0(MAXNMAT),AS0(MAXNMAT),DR0(MAXNMAT),
+     * DDG(3,MAXNLE),BGF(MAXNSPG)
+      
+      real As(MAXNNST),rI(MAXNNST),dr(MAXNNST)
+      
+      real maxload
+      
+      integer icycle
+      
+      double precision fto1  
+      
+      !test
+      double precision dispcrackwidth  
+      double precision dispcrackstrain  
+      integer dispcrackspg(MAXNSPG)    
+      
+      
+C********** PARAMETER FOR DETERIORATION ANALYSIS**************** 
+      
+      REAL EELE(60000)  
+                              !ELSTIC MODULUS OF ELEMENT
+      REAL EE(60000)          
+                              !ELASTIC MODULUS OF MORTAR
+      REAL FTELE(60000)      
+                              !TENSILE STRENGTH OF ELEMENT
+      DIMENSION FTMAX(60000)
+                              !TENSILE STRENGTH OF SPRING
+      REAL GFELE(60000)      
+                              !FRACTURE ENERGY OF ELEMENT
+      REAL SGF(60000)         
+                              !FRACTURE ENERGY OF MORTAR
+      REAL SFS(60000)         
+                              !SHEAR STRENGTH OF MORTAR
+      REAL FSELE(60000)       
+                              !SHEAR STRENGTH OF ELEMENT
+      REAL FCELE(60000)      
+      
+      real e0,ft0,fs0,gf0,fc0 
+      dimension fy(5)       
+      
+      DIMENSION FCMAX(60000)  
+
+      
+      END MODULE DEM_GEN1
+
+C     ************************ MODULE DEM_GEN2  *********************************
+      MODULE DEM_GEN2
+c	   USE DEM_GEN1
+         USE DEM_MMA, ONLY: MAXTK, MAXNELE, MAXISTEEL
+
+      INTEGER ISTEP, ISYUSOKU
+      DOUBLEPRECISION SN,RN
+
+      INTEGER IDEF(3*(MAXNELE+MAXISTEEL)),ISKY(3*(MAXNELE+MAXISTEEL))
+
+      DOUBLEPRECISION  TKU(MAXTK), TKL(MAXTK),
+     *     DDF(3*(MAXNELE+MAXISTEEL)), FA(3*(MAXNELE+MAXISTEEL)),
+     *     DEF(3*(MAXNELE+MAXISTEEL)),  U(3*(MAXNELE+MAXISTEEL)), 
+     *     GEK(36)
+      END MODULE DEM_GEN2
+
+
+	 
+C     ************************ MODULE DEM_CON  *********************************
+      MODULE DEM_CON
+	   USE DEM_MMA
+	   USE DEM_GEN1, ONLY: NCELE, NELE, NNOD, NMAT, NRIGIDBODY, NOD, 
+     *                       KIND0, RBODY, COD, EG, EP, BODY, TH
+                     
+	INTEGER  NSPG 
+
+      INTEGER NSP(2,MAXNSPG), JA(2,MAXNSPG), JYD(2,MAXNSPG),  
+     *         kaku(MAXNSPG), NOTOBA(MAXNSPG,15)
+
+	DOUBLEPRECISION HH(2,MAXNSPG), XYG(2,MAXNSPG), GL(MAXNSPG), 
+     *       BANE(2,MAXNSPG),UC(3,MAXNSPG), RANDO(MAXNSPG)
+     
+      REAL  STRA(2,MAXNSPG),STRES(2,MAXNSPG),W(2,MAXNSPG),
+     *       PRESTRA(2,MAXNSPG), PRESTRES(2,MAXNSPG),PREW(2,MAXNSPG),
+     *       STRAG(2,MAXNSPG),STRESG(2,MAXNSPG),WG(2,MAXNSPG),
+     *       STRESM(3,MAXNSPG),shearm(maxnspg),
+     *       fs
+      
+      double precision elmstress(MAXNCELE)    
+
+	
+	END MODULE DEM_CON
+
+C     ************************ MODULE DEM_STE *********************************
+      MODULE DEM_STE
+         USE DEM_MMA
+	   USE DEM_GEN1, ONLY: NSELE, NELE, NNOD, NNST, NMAT,ISTEEL,IELST, 
+     *                       KIND01, COD, EG, EP, BODY, TH,
+     *                       RI, AS, DR, NST,
+     *     NSELE1,NSELE12,NSELE13,NSELE15,NSELE4,NSELE41,NSELE42
+ 
+      INTEGER  NCP(2,MAXNSELE), JYDRF(MAXNSELE)
+      
+      DOUBLEPRECISION SL(MAXNSELE),US(3,MAXNSELE)
+
+	REAL    STRARF(MAXNSELE), STRESRF(MAXNSELE), 
+     *         PRESTRARF(MAXNSELE), PRESTRESRF(MAXNSELE), 
+     *         STRESMRF(2,MAXNSELE), EGS(MAXNSELE),
+     *         STMR1(MAXNSELE), STMR2(MAXNSELE)
+        
+      END MODULE DEM_STE
+
+C     ************************ MODULE DEM_BON *********************************
+      MODULE DEM_BON
+
+         USE DEM_MMA
+	   USE DEM_GEN1
+         USE DEM_STE, ONLY: NCP
+
+C	INTEGER   
+
+      INTEGER NBP(2,MAXNSPGLI), JYDLI(MAXNSPGLI),
+     *           JYDLI1(MAXNSPGLI), JYDLI2(MAXNSPGLI),
+     *      BDC(MAXNSPGLI), BDRS(MAXNSPGLI),
+     *      PREBDC(MAXNSPGLI), PREBDRS(MAXNSPGLI)
+
+	DOUBLEPRECISION UL(3,MAXNSPGLI), SL1(MAXNSPGLI)
+     
+       
+      REAL SLIP(MAXNSPGLI), STRESLI(MAXNSPGLI), STRARF1(MAXNSPGLI),
+     *      PRESLIP(MAXNSPGLI), PRESTRESLI(MAXNSPGLI),
+     *     DSO1(MAXNSPGLI), 
+     *   DSO2(MAXNSPGLI), TMAX1(MAXNSPGLI),TMAX2(MAXNSPGLI),
+     *   PREDSO1(MAXNSPGLI), PREDSO2(MAXNSPGLI), PRETMAX1(MAXNSPGLI),
+     *   PRETMAX2(MAXNSPGLI),TMAX3(MAXNSPGLI),
+     *                RADSTRA(MAXNSPGLI), RADSTRES(MAXNSPGLI),
+     *            PRERADSTRA(MAXNSPGLI), PRERADSTRES(MAXNSPGLI),
+     *  SA(2,MAXNSPGLI),SB(2,MAXNSPGLI), SC(2,MAXNSPGLI), 
+     *  PRESA(2,MAXNSPGLI), PRESB(2,MAXNSPGLI), PRESC(2,MAXNSPGLI)
+
+
+
+      END MODULE DEM_BON
+
+
+
+C     ************************ MAIN PROGRAM *********************************	 
+              PROGRAM KH_RBSN2D
+                 
+         USE DEM_MMA, ONLY: IO,LP3,LP4,LP5,LP6,LP7,LP8,LP9,lp124,
+     *                      lp17,lp18,lp20,lp21,lp23,lp31,lp32,lp33,
+     *                      lp34,lp35,lp36, lp201, 
+     *                      lp202, lp375, lp376, lp377,
+     *                      lp378, lp1241, lp1242, lp1243
+         USE DEM_GEN1,ONLY: NSELE, NSPGLI, KDG, KUG
+         USE DEM_CON, ONLY: NSPG
+      
+      IMPLICIT REAL*8(a-h, o-z)
+	
+
+      open(io,file='0_INPUT.TXT')
+      open(lp4,file='matrix',form='binary')
+      open(lp5,file='breakspg.txt')
+      open(Lp7,file='Model_for_Material_Property.txt')
+      open(Lp8,file='Material_Property.txt')
+      open(Lp9,file='Changed_Material_property.txt')
+      open(lp17,file='visualFUll',form='binary')
+      open(lp18,file='displacement',form='binary')
+      open(lp20,file='reinforcement_strain_result.txt')
+      open(lp201,file='reinforcement_stress_result.txt')
+      open(lp202,file='reinforcement_position_result.txt')
+      open(lp21,file='analysis_condition.txt')
+      open(lp23,file='initial_material_property.txt')
+      open(lp31,file='result_STRESS.txt')
+      open(lp32,file='result_STRAIN.txt')
+      open(lp33,file='result_SLIP.txt')
+      open(lp34,file='result_BONDSTRESS.txt')
+      open(lp35, file='Step_Load_results.txt')
+      open(lp36, file='Step_Displacement_results.txt')
+      open(lp375, file='concrete_spring_strain.txt')
+      open(lp376, file='concrete_spring_stress.txt')
+      open(lp377, file='concrete_spring_average_xcod.txt')
+      open(lp378, file='concrete_spring_average_ycod.txt')
+      open(lp124, file='crackwidth_xlo.txt')
+      open(lp1241, file='crackwidth_ylo.txt')
+      open(lp1242, file='crackwidth_Xglo.txt')
+      open(lp1243, file='crackwidth_Yglo.txt')
+
+
+      
+C     ************************ INDATA SUBROUTINE *********************************	    
+	CALL INDATA
+
+C     ************************ OUTDATA SUBROUTINE *********************************	 
+	CALL OUTDATA
+      
+C     ************************ FIRST LINE IN THE OUTPUT FILE CHECK.TXT ****************	 
+	   WRITE(lp6, 888) nspg, nsele, nspgli
+	   WRITE(lp6, 888) KDG(1), KDG(2), KDG(3)
+	   WRITE(lp6, 888) KUG(1), KUG(2), KUG(3)
+	    
+888     format(3i5)
+
+C     ************************ DEM_ANALYSIS SUBROUTINE *********************************	 
+	CALL DEM_ANALYSIS
+!     *************************************************************************
+
+      END
+c     *************************************************************************
+
+
+         
+C     ************************ INDATA SUBROUTINE *********************************	 
+
+      SUBROUTINE INDATA
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY: NCELE, NSELE,dispcrackspg
+         !test
+         USE DEM_CON, ONLY: NSPG 
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+      ner=0
+      
+	CALL INPUTR
+      
+      
+	CALL SPRING (NER)
+	CALL SPGNOD
+	CALL GCENT
+      CALL MATERIAL_PROPERTY
+
+      if(ner.ne.0) then
+      stop
+      end if
+
+      CALL HLINE
+      CALL MKNO
+      CALL STEL
+
+	if(ncele.eq.0.OR.NSELE.EQ.0)then
+	goto 223
+	end if
+      
+	CALL LINKAGE
+223   continue
+     
+	CALL INPUTW
+C      call DETERIORATED_MATERIAL_PROPERTY !MATERIAL PROPERTY
+      
+      !test
+      do 10 i=1,nspg
+          dispcrackspg(i)=0
+10    continue
+          
+      return
+      end
+
+C     ************************ INPUTR SUBROUTINE *********************************	 
+
+        SUBROUTINE INPUTR
+
+      
+         USE DEM_MMA
+         USE DEM_GEN1
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      
+
+      write(*,*)'          READ THE INPUT DATA FILE STARTED            '
+      read(io,5000) title
+       read(io,*) modelheight
+       read(io,*) modelwidth
+      read(io,5020) nnod
+	read(io,5020) nnst
+	read(io,5020) ncele
+	read(io,5020) nsele
+	read(io,5020) nele
+	read(io,5020) nmat
+      read(io,5020) ielem
+	read(io,5020) isteel
+      read(io,*) nos2
+      read(io,*) nos5
+      read(io,*) nos3
+
+      WRITE(*,*)'TITLE=  ',TITLE
+	WRITE(*,*)'NUMBER OF NODAL POINTS FOR CONCRETE           ',NNOD
+	WRITE(*,*)'NUMBER OF ELEMENTS FOR CONCRETE               ',NCELE
+	WRITE(*,*)'TOTAL NUMBER OF ELEMENTS                      ',NELE 
+	WRITE(*,*)'NUMBER OF MATERIALS TYPES                     ',NMAT
+	WRITE(*,*)'FLAG INDEX for PLANE STRESS OR PLANE STRAIN   ',IELEM 
+	WRITE(*,*)'        ******************************          '
+
+
+        N= 3*(NELE+ISTEEL)
+
+        if (isteel.eq.0.0)then
+	     go to 300
+	     end if	 
+
+        do 50 it=1,isteel
+       read(io,5020) ielst(it)
+   50 continue
+      
+  300  continue
+
+
+	read(io,5020) nrigidBody
+        if (nrigidBody.eq.0.0)then
+	     go to 301
+	     end if	 
+	
+      do 80 ij=1,nrigidBody
+       read(io,*) RBody(1,ij)
+	 read(io,*) RBody(2,ij)
+   80	continue
+      
+  301  continue
+
+
+	WRITE(*,*)'COORDINATES OF THE NODAL POINT            '
+	WRITE(*,*)'     NODAL POINT','    X CCORDINATE','     Y COORDINATE'
+      do 100 in=1,nnod+nnst
+       read(io,*) cod(1,in)
+       read(io,*) cod(2,in)
+  100 continue
+      WRITE(*,*)(NNOD+NNST), COD(1,(NNOD+NNST)), COD(2,(NNOD+NNST))
+	WRITE(*,*)'        ******************************          '
+
+        if (ncele.eq.0.0)then
+	     go to 302
+	     end if	 
+      write(*,*)'THE NODAL POINTS FOR EACH CONCRETE ELEMENT AND,
+     *MATERIAL TYPE'
+	do 110 ie=1,ncele    !ncele is nrigidBody + elements with boundary conditions (no voronoi shape)
+ 	   read(io,5020) nod(1,ie)
+         read(io,5020) nod(2,ie)
+         read(io,5020) nod(3,ie)
+         read(io,5020) nod(4,ie)
+         read(io,5020) nod(5,ie)
+         read(io,5020) nod(6,ie)
+         read(io,5020) nod(7,ie)
+         read(io,5020) nod(8,ie)
+         read(io,5020) nod(9,ie)
+         read(io,5020) nod(10,ie)
+         read(io,5020) nod(11,ie)
+         read(io,5020) nod(12,ie)
+         read(io,5020) nod(13,ie)
+         read(io,5020) nod(14,ie)
+         read(io,5020) nod(15,ie)
+	   read(io,5020) kind0(ie)
+  110 continue
+      write(*,*)nod(1,NCELE),nod(2,NCELE),nod(3,NCELE),nod(4,NCELE),
+     *   nod(5,NCELE),nod(6,NCELE),nod(7,NCELE),nod(8,NCELE),
+     *   nod(9,NCELE),nod(10,NCELE),nod(11,NCELE),nod(12,NCELE),
+     *   nod(13,NCELE),nod(14,NCELE),nod(15,NCELE),kind0(NCELE)
+	WRITE(*,*)'        ******************************          '
+ 302   continue
+
+
+        if (nsele.eq.0.0)then
+	     go to 303
+	     end if	 
+      
+	     NSELE1=0
+           NSELE12=0
+	     NSELE13=0
+	     NSELE15=0
+	     NSELE4=0
+	     NSELE41=0
+	     NSELE42=0
+
+      do 111 il=1,nsele
+	 read(io,5020) nst(1,il)
+       read(io,5020) nst(2,il)
+       read(io,5020) kind01(il)
+
+
+	IF(KIND01(IL).EQ.2.OR.KIND01(IL).EQ.3.OR.KIND01(IL).EQ.5)THEN
+	NSELE1=NSELE1+1
+	IF(KIND01(IL).EQ.2)THEN
+	NSELE12=NSELE12+1
+	ELSEIF(KIND01(IL).EQ.3)THEN
+	NSELE13=NSELE13+1
+	ELSEIF(KIND01(IL).EQ.5)THEN
+	NSELE15=NSELE15+1
+	END IF
+	END IF
+	IF(KIND01(IL).EQ.4)THEN
+	NSELE4=NSELE4+1
+	IF(COD(2,NST(1,IL)).EQ.0.0.AND.COD(2,NST(2,IL)).EQ.0.0)THEN
+	NSELE41=NSELE41+1
+	ELSEIF(COD(2,NST(1,IL)).NE.0.0.AND.COD(2,NST(2,IL)).NE.0.0)THEN
+	NSELE42=NSELE42+1
+       END IF
+	 END IF
+
+
+  111	continue
+      
+ 303   continue
+
+      if(ncele.eq.0.0.or.nsele.eq.0.0)then
+	goto 234
+	end if
+
+	     NSLI1=0
+           NSLI12=0
+	     NSLI13=0
+	     NSLI15=0
+	     NSLI4=0
+	     NSLI41=0
+	     NSLI42=0
+
+	NSPGLI= NSELE+ISTEEL  !number of steel/frp elements + number of steel/frp bars
+
+    
+      do 122 ii=1,nsele+isteel
+	 read(io,5020) nlin(ii)         ! nlin is the name of steel/frp node (bond spring)
+       read(io,5020) kind02(ii)       ! kind02 is the type of corresponding node (tensile, comp, shear, frp)
+
+	IF(KIND02(II).EQ.2.OR.KIND02(II).EQ.3.OR.KIND02(II).EQ.5)THEN
+	NSLI1=NSLI1+1                   ! NSLI1: total number of nodes/bond springs for steel
+	IF(KIND02(II).EQ.2)THEN
+	NSLI12=NSLI12+1                 ! NSLI12: total number of nodes/bond springs for tensile steel
+	ELSEIF(KIND02(II).EQ.3)THEN
+	NSLI13=NSLI13+1                 ! NSLI13: total number of nodes/bond springs for stirrup
+	ELSEIF(KIND02(II).EQ.5)THEN
+	NSLI15=NSLI15+1                 ! NSLI15: total number of nodes/bond springs for compression steel
+	 END IF
+	 END IF
+
+	IF(KIND02(II).EQ.4)THEN
+	NSLI4=NSLI4+1                   ! NSLI4: total number of nodes/bond springs for frp
+	IF(COD(2,NLIN(II)).EQ.0.0.AND.COD(2,NLIN(II)).EQ.0.0)THEN
+	NSLI41=NSLI41+1                 ! NSLI41: total number of nodes/bond springs for bottom frp 
+	ELSEIF(COD(2,NLIN(II)).NE.0.0.AND.COD(2,NLIN(II)).NE.0.0)THEN
+	NSLI42=NSLI42+1                 ! NSLI42: total number of nodes/bond springs for top frp 
+       END IF
+	 END IF
+	 
+122   continue
+      
+234   continue
+
+      do 120 im=1, nmat
+	   read(io,*) eg(im)	   
+	   read(io,*) ep(im)
+	   read(io,*) body(im)
+	   read(io,*) th(im)
+	   if(th(im).eq.0.) then
+	      th(im)=1.0
+	   end if
+
+ 120  continue
+	WRITE(*,*)'        ******************************          '	      
+
+	 
+      do 180 ik= 2 ,nmat
+	   read(io,*) rI0(ik)
+	   read(io,*) As0(ik)
+	   read(io,*) dr0(ik)
+
+  180 continue
+	WRITE(*,*)'        ******************************          '
+      
+      do 190 ik=1,nsele
+          ! KIND01(IL)= 1: concrete; 2: tensile steel; 3: stirrup; 4: FRP sheet; 5:compression steel 
+          IF (kind01(ik).EQ.2)THEN            
+          NSO=nos2
+          ELSEIF(kind01(ik).EQ.1)THEN
+          NSO=1
+          ELSEIF (kind01(ik).EQ.3)THEN
+          NSO=nos3
+          ELSEIF (kind01(ik).EQ.4)THEN
+          NSO=1
+          ELSE IF (kind01(ik).EQ.5)THEN
+          NSO=nos5
+          END IF
+          
+      As(ik)=As0(kind01(ik))*NSO
+      rI(ik)=rI0(kind01(ik))
+190   continue
+      
+      do 191 ik=1,nspgli
+      dr(ik)=dr0(kind02(ik))
+191   continue
+      nbound_ele=0
+      
+	read(io,5020) kug(1)        ! number of elements have constrained displacement in X axis 
+      read(io,5020) kug(2)        ! number of elements have constrained displacement in Y axis 
+      read(io,5020) kug(3)        ! number of elements constrained in rotation 
+
+	 do 130 id=1,3
+	   ku=kug(id)
+	   if(ku.ne.0) then
+	     do 140 iu=1,ku
+		     read(io,5020) nug(id,iu)   ! name of boundary elements assigned constraint 
+               do i1=1,nbound_ele
+                   if(bound_ele(i1)==nug(id,iu))then
+                   flag_bound_ele=1
+                   endif
+               enddo
+               if(flag_bound_ele/=1)then
+                  nbound_ele=nbound_ele+1      
+                  bound_ele(nbound_ele)=nug(id,iu)
+               endif
+               flag_bound_ele=0
+
+  140     continue
+	   end if	 
+  130 continue
+
+
+      !   boundary elements for displacement
+	read(io,5020) kdg(1)        ! number of elements assigned displacement along X axis
+	read(io,5020) kdg(2)        ! number of elements assigned displacement along Y axis
+	read(io,5020) kdg(3)        ! number of elements assigned rotation
+
+	 do 150 id=1,3					 
+	   kp=kdg(id)
+	   if(kp.ne.0) then
+	     do 160 ip=1,kp		   
+		   read(io,5020) ndg(id,ip)     ! name of elements that was assigned displacement
+             read(io,*) ddg(id,ip)        ! corresponding displacement of the element
+               do i1=1,nbound_ele
+                   if(bound_ele(i1)==ndg(id,ip))then
+                   flag_bound_ele=1
+                   endif
+               enddo
+               if(flag_bound_ele/=1)then
+                  nbound_ele=nbound_ele+1      
+                  bound_ele(nbound_ele)=ndg(id,ip)
+               endif
+               flag_bound_ele=0
+
+  160      continue
+         end if	      			
+  150  continue
+       
+       ! (kN)   the program will stop when it reaches this load
+       read(io,*) maxload
+       maxload=maxload*1000       !convert kN to N
+       
+       !read(io,5020) icycle
+       
+       ! magnification (scale) of the displayed displacement
+       read(io,*) scale_factor
+       
+       !analysis_condition
+       read(lp21,*) MAXNSTEP
+       read(lp21,*) MAXNITERATION1
+       read(lp21,*) MAXNITERATION2
+       read(lp21,*) CONVERGENCE
+       
+       
+       !(initial_material_property.txt)
+       read(lp23,*) e0
+       read(lp23,*) ft0
+       read(lp23,*) fs0
+       read(lp23,*) gf0
+       read(lp23,*) fc0
+       read(lp23,*) fy(2)!    tensile steel
+       read(lp23,*) fy(3)! stirrup
+       read(lp23,*) fy(4)! frp
+       read(lp23,*) fy(5)!     compression steel
+       
+       close(lp23)
+       
+       
+	
+      write(*,*)'          READ THE INPUT DATA FILE FINISHED          '
+      
+ 5000 format(a80)
+ 5020 format(i5)
+
+           
+      end
+
+      
+
+      
+      
+      
+C     ************************ SPRING SUBROUTINE *********************************	 
+         
+	   SUBROUTINE SPRING (NER)
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY: NCELE, NOD,bound_sp,nbound_sp,flag_bound_sp
+     *                       ,bound_ele,nbound_ele
+	   USE DEM_CON,  ONLY: NSPG, NSP
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      
+      nbound_sp=0
+      nspg=0
+      ne1=ncele-1
+      do 100 ie=1,ne1
+      nset=0
+      ii=ie+1
+      do 110 je=ii,ncele
+      nsame=0	
+	 do 120 i=1,15
+	   if(nod(i,ie).ne.0) then
+	     do 130 j=1,15
+		   if (nod(i,ie).eq.nod(j,je)) nsame=nsame+1
+  130      continue
+        end if
+  120   continue
+       if(nsame.gt.2) then
+	    ner=ner+1
+       else if(nsame.eq.2) then
+	    nspg=nspg+1
+		nset=nset+1
+		nsp(1,nspg)=ie
+		nsp(2,nspg)=je
+          
+          do i1=1,nbound_ele
+              if(bound_ele(i1)==ie .or. bound_ele(i1)==je)then
+              flag_bound_sp=1
+              endif
+          enddo
+          if(flag_bound_sp==1)then
+          nbound_sp=nbound_sp+1      
+          bound_sp(nbound_sp)=nspg
+          endif
+          flag_bound_sp=0
+          
+       end if
+ 110   continue
+       if(nset.gt.15) then
+	     ner=ner+1
+      end if
+  100 continue
+
+      return
+	  end
+
+C     ************************ SPGNOD SUBROUTINE *********************************	 
+
+         SUBROUTINE SPGNOD
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY: NOD
+	   USE DEM_CON,  ONLY: NSPG, NSP, JA
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+      dimension nn(2,2)
+      
+
+
+      do 100 is=1,nspg
+	nn1=0
+	  m1=nsp(1,is)
+	  m2=nsp(2,is)								
+	  do 110 i=1,15
+		n1=nod(i,m1)
+	    if(n1.eq.0) then
+		goto 300
+		end if   
+		do 120 j=1,15
+	      n2=nod(j,m2)
+            if(n1.eq.n2) then
+	      nn1=nn1+1
+	      nn(1,nn1)=i
+            nn(2,nn1)=n1
+	      end if
+120       continue
+110     continue
+
+300     if(nn(1,1).eq.1.and.nn(1,2).ne.2) then
+	  ja(1,is)=nn(2,2)
+	  ja(2,is)=nn(2,1)
+	  else
+	  ja(1,is)=nn(2,1)
+	  ja(2,is)=nn(2,2)
+       end if
+
+
+
+100   continue
+      
+	return						
+      end					
+     				
+C     ************************ GCENT SUBROUTINE *********************************	 
+
+         SUBROUTINE GCENT
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY : NCELE, NOD, COD
+	   USE DEM_CON,  ONLY : XYG
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+!
+	 do 100 ie=1,ncele
+	     ww=0.0		
+		 wx=0.0
+		 wy=0.0
+		 do 110 i=1,15
+		   n=nod(i,ie)
+		   if(n.ne.0) then
+		     ww=ww+1.0
+			 wx=wx+cod(1,n)
+			 wy=wy+cod(2,n)
+	       end if
+  110  continue		
+       xyg(1,ie)=wx/ww
+	 xyg(2,ie)=wy/ww
+  100 continue
+
+	 return
+      end
+      
+C     ********************* SUBROUTINE MATERIAL_PROPERTY ****************************
+C         FUNCTION:「MAKEING THE MATERIAL PROPERTY」
+C         DETAIL:To chenge the erastic modurus at the each element, thestructure of 
+C                parameter "eg" is chenged.
+C                eg > kind0 > nsp > spring 　　→    eeg > nsp > spring
+C                To dicide the stresm(2,is) and bgf(is) 
+
+
+C     ******************************************************************************  
+       
+	SUBROUTINE MATERIAL_PROPERTY
+	   USE DEM_MMA
+
+         USE DEM_GEN1, ONLY: NCELE,NSELE,NELE,ISTEEL,BGF,nelem,
+     *                       NSPGLI, KIND0, KIND01, KIND02,EG,EEG,
+     *                       fy,COD
+
+	   USE DEM_CON, ONLY: NSPG, NSP, STRESM, JYD, RANDO, XYG,JA
+	   USE DEM_STE, ONLY: STRESMRF, JYDRF, EGS, STMR1, STMR2
+	   USE DEM_BON, ONLY: JYDLI
+
+
+      IMPLICIT REAL*8(A-H,O-Z)
+      
+C     :::::::private parameter::::::::
+      integer ncount(100000)  !Counter
+	
+      !open(66,file='FC.TXT')
+      
+      
+C     ::::::::::::::::: Makeing of Element Elastic Modulus Parameter "eeg" :::::::::::::::::::::
+      do 50 i=1,100000
+          ncount(i)=0d0    
+50    continue
+      
+      nelem=0d0
+      
+      
+            do 100 is=1,nspg
+          
+          m1=nsp(1,is)
+          m2=nsp(2,is)
+          
+          if(ncount(m1).eq.0)then
+              k1=kind0(m1)
+              eeg(m1)=eg(k1)
+              nelem=nelem+1
+          end if
+          
+          if(ncount(m2).eq.0)then
+              k2=kind0(m2)
+              eeg(m2)=eg(k2)
+              nelem=nelem+1
+          end if
+          
+          
+          ncount(m1)=ncount(m1)+1
+          ncount(m2)=ncount(m2)+1
+        
+100   continue
+C     :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+ 
+
+	NMORE=0d0
+C     ************* MATERIAL PROPERTIES OF CONCRETE ************************
+
+      do 10 is=1,nspg     
+	if(kind0(nsp(1,is)).eq.1.and.kind0(nsp(2,is)).eq.1) then	
+	stresm(1,is)=  -50    !DETERIORATED LATERIAL PROPERTY 
+	stresm(2,is)=   0.23*((ABS(stresm(1,is)))**(2.0/3.0))    !DETERIORATED LATERIAL PROPERTY 
+	NMORE=NMORE+1
+	end if
+
+	if(kind0(nsp(1,is)).eq.1.and.kind0(nsp(2,is)).eq.3) then
+	stresm(1,is)=  -500.24
+       stresm(2,is)=  500.24
+	end if
+
+	if(kind0(nsp(1,is)).eq.3.and.kind0(nsp(2,is)).eq.1) then
+ 	stresm(1,is)= -10000.02
+	stresm(2,is)=  10000.02
+ 	end if
+
+	if(kind0(nsp(1,is)).eq.3.and.kind0(nsp(2,is)).eq.3) then
+ 	stresm(1,is)= -10000.02
+	stresm(2,is)=  10000.02
+	end if
+	
+	
+
+ 10   continue
+      
+      
+C:::::::: Makeing of Fracture Energy Parameter "bgf(is)" ::::::::::
+      
+      do 500 is=1,nspg
+      fc=stresm(1,is)
+      Dmax=19.00
+      bgf(is)=10.0*Dmax**(1.0/3.0)*(ABS(fc))**(1.0/3.0)       !DETERIORATED LATERIAL PROPERTY 
+500   continue
+
+
+	  K=12
+	  M=0
+	  S= 1D0
+	  N= NMORE
+
+        DO 200 I2=1,N
+	 XNOR=0D0
+	  DO 300 I3=1,K
+	 XXXX=DRAND(0)
+	 XNOR=XNOR+XXXX
+ 300   CONTINUE
+
+	 XNOR=XNOR-6D0
+	 RANDO(I2)=XNOR*S+M
+
+C      **********IN CASE OF NO VARIATION**************
+          IF(VARI.EQ.0D0)   RANDO(I2)=0D0
+
+         RANDO(I2)=RANDO(I2)*(-0.2D0*stresm(2,1)+1.5D0)
+
+	    IF(stresm(2,1).GT.7.50) RANDO(I2)=0D0
+
+	    IF(RANDO(I2).LT.-2.99999D0) RANDO(I2)=-2.99999D0
+
+ 200   CONTINUE
+
+
+	!*** GIVE A VARIATION TO TENSILE STRENGTH
+	NMOR2=0
+	DO 400 I4=1,NSPG
+       IF(KIND0(NSP(1,I4)).EQ.1.AND.KIND0(NSP(2,I4)).EQ.1)THEN 
+			NMOR2=NMOR2+1
+			stresm(2,I4)=stresm(2,I4)+stresm(2,I4)*(RANDO(NMOR2)/3D0)
+	    END IF
+400   CONTINUE
+
+
+C     ************* MATERIAL PROPERTIES OF STEEL AND FRP ************************
+        DO 11  IS=1,NSELE
+	  im=kind01(is)
+
+C     ************* TENSION REINFORCEMENT ************************
+        if(kind01(is).eq.2)then
+        egs(IS)=3000.0           
+	  stresmrf(1,is)=fy(2)     
+	  stresmrf(2,is)=570.0      
+         stmr1(IS)=0.0022        
+	   stmr2(IS)= 0.014         
+	  goto 11
+
+C     ************* SHEAR REINFORCEMENT ************************
+       ELSEif(kind01(is).eq.3)then
+        egs(IS)=3000.0
+	  stresmrf(1,is)=fy(3)
+	  stresmrf(2,is)=622.0
+         stmr1(IS)=0.00194
+	   stmr2(IS)= 0.014
+	  goto 11
+
+C     ************* COMPRESSION REINFORCEMENT ************************	  
+	  ELSEif(kind01(is).eq.5)then
+        egs(IS)=3000.0
+	  stresmrf(1,is)=fy(5)
+	  stresmrf(2,is)=622.0
+         stmr1(IS)=0.00194
+	   stmr2(IS)= 0.014
+	  goto 11
+
+C     ************* FRP SHEET ************************
+        elseif(kind01(is).eq.4)then
+        egs(IS)=0.0
+	  stresmrf(1,is)=fy(4)
+         stmr1(IS)=stresmrf(1,is)/eg(im)
+	   stmr2(IS)= 0.0
+	  goto 11
+	  end if
+
+11    CONTINUE
+
+
+C     ************* DIFFERENT MATERIALSL FLAGS ************************
+	do 20 i=1,nspg
+	do 20 j=1,2
+      jyd(j,i)=0.0
+ 20   continue
+
+	do 30 i1=1,nsele
+      jydrf(i1)=0.0
+ 30   continue
+
+        
+	do 40 i2=1,nspgli
+      jydli(i2)=0.0
+ 40   continue
+
+
+	return
+      end
+
+	  		
+C     ************************ HLINE SUBROUTINE *********************************	 
+
+         SUBROUTINE HLINE
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY: COD,nbound_ele,bound_ele
+	   USE DEM_CON,  ONLY: NSPG, NSP, JA, GL, XYG, HH
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+!
+       do 100 is=1,nspg
+	     j1=ja(1,is)
+		 j2=ja(2,is)
+		 x=cod(1,j2)-cod(1,j1)
+		 y=cod(2,j2)-cod(2,j1)
+		 gl(is)=sqrt(x*x+y*y)
+		 sl=y/gl(is)
+		 sm=x/gl(is)			
+		 xm=(cod(1,j1)+cod(1,j2))/2.0
+		 ym=(cod(2,j1)+cod(2,j2))/2.0
+		 m1=nsp(1,is)
+		 m2=nsp(2,is)
+		 xl=xm-xyg(1,m1)
+		 yl=ym-xyg(2,m1)
+		 h1=sl*xl-sm*yl
+		 xl=xyg(1,m2)-xm
+		 yl=xyg(2,m2)-ym
+		 h2=sl*xl-sm*yl 
+		 hh(1,is)=abs(h1)
+		 hh(2,is)=abs(h2)
+           
+!           do i1=1,nbound_ele
+!              if(nsp(1,is)==bound_ele(i1))then
+!                  hh(1,is)=hh(2,is)
+!              elseif(nsp(2,is)==bound_ele(i1))then
+!                  hh(2,is)=hh(1,is)
+!              endif
+!          enddo
+
+100   continue
+
+       return
+         end
+         
+         
+C     *****************SUBROUTINE DETERIORATED_MATERIAL_PROPERTY*******************
+C         FUNCTION:「Reading the Deteriorated Material Property」
+C         DETEIL: After mass transfer analysis and chemical reration analysis , textfile
+C                「E_PROPERTY.txt」,「FT.PROPERTY.txt」,「FS.PROPERTY.txt」,「GF.PROPERTY.txt」 
+C                 is created. These files contain the deteriorated material property.
+C                 Here this subroutine input these data to this program.
+         
+C     *****************************************************************************   
+      SUBROUTINE DETERIORATED_MATERIAL_PROPERTY
+      USE DEM_GEN1 
+      USE DEM_CON
+      
+      OPEN(lp10,file='E.txt')
+      OPEN(lp11,file='FT.txt')
+      OPEN(lp12,file='FS.txt')
+      OPEN(lp13,file='GF.txt')
+      OPEN(LP15,FILE="FC.txt")  
+      
+      DO I1=1,ncele
+          READ(lp10,*) EELE(I1)
+          READ(lp11,*) FTELE(I1)
+          READ(lp12,*) FSELE(I1)
+          READ(lp13,*) GFELE(I1)
+          READ(LP15,*) FCELE(I1)  
+      END DO
+      
+      DO I1=1,NELE
+         EELE(I1)=EELE(I1)!*1.0d0
+         FTELE(I1)=FTELE(I1)!*0.8d0
+         FSELE(I1)=FSELE(I1)!*0.7d0
+         GFELE(I1)=GFELE(I1)!*0.3d0      
+         FCELE(I1)=FCELE(I1)*FTELE(I1)/ft0
+      END DO  
+      
+      
+      DO IS =1,NSPG                
+          H=HH(1,IS)+HH(2,IS)
+		M1=NSP(1,IS)
+		M2=NSP(2,IS)
+		K1=KIND0(M1)
+		K2=KIND0(M2)
+              IF(K1==1.AND.K2==3)THEN  
+              EE(IS)=EELE(M2)
+              FTMAX(IS)=FTELE(M2)
+              SGF(IS)=GFELE(M2)
+              SFS(IS)=FSELE(M2)
+              FCMAX(IS)=FCELE(M2)    
+              ELSEIF(K1==3.AND.K2==1)THEN 
+              EE(IS)=EELE(M1)
+              FTMAX(IS)=FTELE(M1)
+              SGF(IS)=GFELE(M1)
+              SFS(IS)=FSELE(M1)
+              FCMAX(IS)=FCELE(M1)
+              ELSE        
+		    EE(IS)=(EELE(M1)*HH(1,IS)+EELE(M2)*HH(2,IS))/H
+		    FTMAX(IS)=(FTELE(M1)*HH(1,IS)+FTELE(M2)*HH(2,IS))/H
+		    SGF(IS)=(GFELE(M1)*HH(1,IS)+GFELE(M2)*HH(2,IS))/H
+		    SFS(IS)=(FSELE(M1)*HH(1,IS)+FSELE(M2)*HH(2,IS))/H
+              FCMAX(IS)=(FCELE(M1)*HH(1,IS)+FCELE(M2)*HH(2,IS))/H
+              ENDIF
+      END DO
+      
+
+      
+      
+      DO IS = 1,NSPG
+          eeg(IS)=EE(IS)
+          stresm(2,IS)=FTMAX(IS)
+          shearm(IS)=SFS(IS)
+          bgf(IS)=SGF(IS)
+          stresm(1,IS)=-FCMAX(IS)    
+      END DO
+      
+      
+      using_deteriorated_poperty=0
+      
+      
+      CLOSE(lp10)
+	CLOSE(lp11)
+	CLOSE(lp12)
+	CLOSE(lp13)  
+      CLOSE(LP15)
+      
+      END 
+         
+      
+         
+    
+         
+         
+         
+C     ************************ MKNO SUBROUTINE *********************************	 
+
+         SUBROUTINE MKNO
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY: NOD, NCELE
+	   USE DEM_CON,  ONLY: NSPG, JA, NOTOBA,  KAKU
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+
+      do 100 i1=1,ncele
+	ikaku=0
+
+        do 200 i2=1,15
+	    ikaku=ikaku+1
+	    if(i2.ne.15) then
+	    i22=i2+1	    
+		ia=nod(i2,i1)
+	    ib=nod(i22,i1)
+          if(ib.eq.0) then
+           ib=nod(1,i1)
+           kaku(i1)=ikaku
+	     end if
+	    else
+	    ia=nod(15,i1)
+	    ib=nod(1,i1)
+	    kaku(i1)=15
+	    end if
+	
+		do 300 i3=1,nspg
+            ia1=ja(1,i3)
+	      ib1=ja(2,i3)
+	      if(ia.eq.ia1.and.ib.eq.ib1) then
+	      notoba(i1,i2)=i3
+	      goto 600
+            end if
+	      if(ia.eq.ib1.and.ib.eq.ia1) then
+	      notoba(i1,i2)=i3
+	      goto 600
+            end if
+ 300      continue
+
+ 600    continue
+	  if(ib.eq.nod(1,i1)) then
+	  goto 100
+	  end if
+
+ 200    continue
+ 100  continue	
+	
+      return
+	end
+C     ************************ STEL SUBROUTINE *********************************	 
+
+         SUBROUTINE STEL
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY: NCELE, ISTEEL, IELST, NSELE, NST, COD
+	   USE DEM_STE,  ONLY: NCP, SL
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+	dimension ncp1(50,2000),ncp2(50,2000)
+
+       nn1=ncele  
+	 
+      do 100 i=1,isteel
+	  if(i.ge.2)then
+	    nn1=nn1+1
+	  end if
+	  do 200 j=1,ielst(i)	 
+	    nn1=nn1+1
+	    ncp1(i,j)=nn1
+          ncp2(i,j)=nn1+1
+200     continue 
+100   continue
+         
+       nn2=0
+	do 300 ii=1,isteel
+	 do 400 jj=1,ielst(ii)
+	    nn2=nn2+1
+	    ncp(1,nn2)=ncp1(ii,jj)
+	    ncp(2,nn2)=ncp2(ii,jj)
+400    continue
+300   continue
+
+
+        DO 500 IL= 1,NSELE
+	S1=NST(1,IL)
+	S2=NST(2,IL)
+      x1=cod(1,s2)-cod(1,s1)
+	y1=cod(2,s2)-cod(2,s1)
+	SL(IL)=sqrt(x1*x1+y1*y1)
+
+500   CONTINUE
+
+
+
+	return
+         end
+         
+C     ************************ LINKAGE SUBROUTINE *********************************	 
+          SUBROUTINE LINKAGE      
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY: NNOD, NNST, NRIGIDBODY, RBODY, COD, 
+     *                       IELST, ISTEEL
+	   USE DEM_STE, ONLY: NCP
+	   USE DEM_BON, ONLY: NBP
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+	dimension a1(MAXNSPGLI,MAXNCELE), b1(MAXNSPGLI,MAXNCELE),
+     *         c1(MAXNSPGLI,MAXNCELE),cmin(MAXNSPGLI),
+     *         c2(MAXNCELE),jt(MAXISTEEL)
+     
+	il=0 
+	ii=0
+	do 100 in=nnod+1,nnod+nnst
+	    ii=ii+1
+	  do 200 is=1,nrigidBody
+            a1(ii,is)=cod(1,in)-RBody(1,is)
+	      b1(ii,is)=cod(2,in)-RBody(2,is)
+            c1(ii,is)=sqrt(a1(ii,is)*a1(ii,is)+b1(ii,is)*b1(ii,is))
+200	  continue
+          
+
+	    cmin(ii)=c1(ii,1)
+	    do 300 ik=2,nrigidBody
+	      if(c1(ii,ik).lt.cmin(ii))then
+	       cmin(ii)=c1(ii,ik)
+		  endif
+300	    continue
+       
+       do 400 ij=1,nrigidBody
+	   c2(ij)=c1(ii,ij)
+        if(cmin(ii).eq.c2(ij))then
+          nbp(1,ii)=ij                
+
+	    jt(1)=0     
+	    do 500 jk=1,isteel
+	    if(jk.eq.1)then
+	    jt(jk)=jt(jk)+ielst(jk)+1
+	    else
+	    jt(jk)=jt(jk-1)+ielst(jk)+1
+	    end if
+
+	    if(ii.eq.jt(jk))then
+	    il=il+1
+	    nbp(2,ii)=ncp(2,ii-il)
+	    goto 600
+          end if
+
+500       continue
+
+          nbp(2,ii)=ncp(1,ii-il)
+600       continue
+	  end if
+400    continue
+100   continue
+
+      
+	return
+      end
+
+C     ************************ INPUTW SUBROUTINE *********************************	 
+
+          SUBROUTINE INPUTW
+
+         USE DEM_MMA
+         USE DEM_GEN1, ONLY: COD
+	   USE DEM_CON,  ONLY: NSPG, JA
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+ 
+ 
+
+	write(lp5,3255) nspg
+	do 111 i=1,nspg	
+      write(lp5,3255) ja(1,i)
+      write(lp5,3255) ja(2,i) 
+111   continue	
+	
+3255	format(i5)
+3254  format(d15.5)
+		
+	
+      return
+	end
+  
+  
+C     ************************ OUTDATA SUBROUTINE ****************************
+  
+        SUBROUTINE OUTDATA
+
+		USE DEM_MMA          
+		USE DEM_GEN1
+          USE DEM_CON, ONLY: NSPG, JA, HH, NSP,GL
+          USE DEM_STE, ONLY: NCP
+          USE DEM_BON, ONLY: NBP
+      
+	open (unit=777, file='outdata.dat')
+C
+	write(777,*)'NUMBER OF NODES FOR CONCRETE        ', NNOD
+	write(777,*)'NUMBER OF NODES FOR STEEL+SHEET     ', NNST
+	write(777,*)'TOTAL NUMBER OF NODES               ', (NNOD+NNST)
+	write(777,*)'NUMBER OF ELEMENTS FOR CONCRETE     ', NCELE
+	write(777,*)'NUMBER OF ELEMENTS FOR STEEL+SHEET  ', NSELE
+	write(777,*)'TOTAL NUMBER OF ELEMENTS            ', NELE
+	write(777,*)'TOTAL NUMBER OF MATERIAL            ', NMAT
+	write(777,*)'NUMBER OF STEEL BARS AND SHEET      ', ISTEEL
+	write(777,*)'NUMBER OF ELEMENTS FOR STEEL        ',NSELE1 
+	write(777,*)'NUMBER OF ELEMENTS FOR FRP SHEET    ',NSELE4
+	write(777,*)'NUMBER OF ELEMENTS FOR TENSION STEEL',NSELE12 
+	write(777,*)'NUMBER OF ELEMENTS FOR COMPRESSION STEEL',NSELE15
+	write(777,*)'NUMBER OF ELEMENTS FOR STIRUP STEEL',NSELE13
+	write(777,*)'NUMBER OF ELEMENTS FOR LOWER FRP SHEET',NSELE41
+	write(777,*)'NUMBER OF ELEMENTS FOR UPPER FRP SHEET',NSELE42 
+	write(777,*)'NUMBER OF BOND ELEMENTS FOR STEEL        ',NSLI1 
+	write(777,*)'NUMBER OF BOND ELEMENTS FOR FRP SHEET    ',NSLI4
+	write(777,*)'NUMBER OF BOND ELEMENTS FOR TENSION STEEL',NSLI12 
+	write(777,*)'NUMBER OF BOND ELEMENTS FOR COMPRESSIONSTEEL',NSLI15
+	write(777,*)'NUMBER OF BOND ELEMENTS FOR STIRUP STEEL',NSLI13
+	write(777,*)'NUMBER OF BOND ELEMENTS FOR LOWER FRP SHEET',NSLI41
+	write(777,*)'NUMBER OF BOND ELEMENTS FOR UPPER FRP SHEET',NSLI42  
+	write(777,*)' ***************KH********************  '
+C
+
+	write(777,*)'NUMBER OF SPRINGS FOR CONCRETE     ', NSPG
+	write(777,*)'NUMBER OF SPRINGS FOR STEEL AND FRP', NSELE
+	write(777,*)'NUMBER OF SPRINGS FOR BOND         ', NSPGLI
+	write(777,*)' ***************KH********************  '
+C
+	write(*,*)'NUMBER OF SPRINGS FOR CONCRETE     ', NSPG
+
+
+C
+	write(777,*)' COORDINATES OF NODAL POINTS  '      
+	WRITE(777,*)'  NOD', '     X', '      Y' 
+	DO 999 I= 1,(NNOD+NNST)
+	WRITE(777,7773)I, COD(1,I), COD(2,I)
+999   CONTINUE
+	write(777,*)' ***************KH********************  '
+C
+	write(777,*)' COORDINATES OF MOTHER POINTS FOR CONCRETE ELEMENTS '      
+	WRITE(777,*)'ELEM      ', ' X       ', ' Y'
+	DO 9991 I1= 1,NCELE
+	WRITE(777,7773)I1, RBODY(1, I1), RBODY(2,I1)
+9991  CONTINUE
+	write(777,*)' ***************KH********************  '
+C  
+ 	write(777,*)'NODAL POINTS FOR CONCRETE ELEMENTS AND MATERIAL TYPE'     
+       WRITE(777,*)'ELEM', 'N1','N2','N3','N4','N5','N6','N7','N8',
+     *              'N9','N10','N11','N12','N13','N14','N15','MAT'	 
+      DO 9992 I2= 1, NCELE
+	WRITE(777,7775)I2, (NOD(K,I2), K=1,15), KIND0(I2)
+9992   CONTINUE
+	write(777,*)' ***************KH********************  '
+C
+ 	write(777,*)'NODAL POINTS FOR STEEL+SHEET ELEMENTS AND MAT. TYPE'     
+       WRITE(777,*)'   ELEM   ', '     N1     ','   N2    ','    MAT   '	 
+      DO 9993 I3= 1, NSELE
+	WRITE(777,77733)I3, NST(1,I3), NST(2,I3), KIND01(I3)
+9993   CONTINUE
+	write(777,*)' ***************KH********************  '
+C
+ 	write(777,*)'DATA OF CONCRETE SPRINGS'
+       WRITE(777,7776)'SP ','ELEM1', 'ELEM2','JA1',
+     *               'JA2','   HI',' H2'	 
+	     DO 9994 I4= 1, NSPG
+        WRITE(777,7777)I4,NSP(1,I4),NSP(2,I4),JA(1,I4),JA(2,I4),
+     *                  HH(1,I4),HH(2,I4) 
+9994     CONTINUE   
+	write(777,*)' ***************KH********************  '
+C
+ 	write(777,*)'DATA OF BOND SPRINGS'
+       WRITE(777,*)'  SP  ','  ELEM1  ', '  ELEM2  ','  NLIN  '	 
+	     DO 9995 I5= 1, NSPGLI
+        WRITE(777,7779)I5,NBP(1,I5),NBP(2,I5),nlin(i5) 
+9995     CONTINUE   
+
+
+7771    FORMAT(I5)
+7772    FORMAT(3A7)
+7773    FORMAT(I5, 2F10.4)
+77722   FORMAT(4A7)
+77733   FORMAT(4I5)
+7774    FORMAT(17A5)
+7775    FORMAT(17I5)
+7776    FORMAT(7a7)
+7777    FORMAT(5i5,2e15.5)
+7778    format(4a7)
+7779    format(4i5)
+
+       return
+      end
+    
+C     ************************ DEM_ANALYSIS SUBROUTINE ****************************
+        
+         SUBROUTINE DEM_ANALYSIS
+
+         USE DEM_MMA
+
+         USE DEM_GEN1, ONLY: NCELE,NSELE,NELE,ISTEEL,NSPGLI,DDG,KDG,ndg,
+     *                       maxload,MAXNSTEP,MAXNITERATION1,
+     *                       MAXNITERATION2,CONVERGENCE
+         USE DEM_GEN2, ONLY: ISTEP, ISYUSOKU,U,TKU,TKL, SN, RN,fa
+
+	   USE DEM_CON, ONLY: NSPG,STRA,STRES,W,PRESTRA,PRESTRES,PREW 
+	   USE DEM_STE, ONLY: STRARF,STRESRF,PRESTRARF,PRESTRESRF 
+	   USE DEM_BON, ONLY: SLIP,STRESLI,PRESLIP,PRESTRESLI, RADSTRA,
+     *                      RADSTRES,PRERADSTRA,PRERADSTRES,
+     *                      SA,SB,SC,PRESA,PRESB,PRESC,
+     *                      BDC,BDRS,PREBDC,PREBDRS,
+     *                      DSO1,DSO2,TMAX1,TMAX2,  
+     *                      PREDSO1,PREDSO2,PRETMAX1,PRETMAX2
+
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+ 	write(*,8999)
+8999  format(' ***   ANALYSIS STRART ------RUNNING-----   ***')
+
+	istep=0
+      
+ 300  istep=istep+1
+   
+      IF(ISTEP.EQ.MAXNSTEP)THEN
+	WRITE(*,*)'    END     '
+	GO TO 7777
+	END IF
+
+
+      if(istep.le.10)then	  
+
+       CALL MKSTIF
+	 CALL MKDEF1        
+	 CALL SKYDECOMP 
+
+      rewind (lp4)
+      do 1212 ii=1,(9*(nele+isteel)*(nele+isteel)+3*(nele+isteel))/2
+      write(lp4) tku(ii)
+	write(lp4) tkl(ii)
+1212  continue
+      
+	 if(istep.eq.1)then
+	  do 10 i=1,(nele+isteel)*3
+	  u(i)=0.0
+ 10     continue
+     	 end if
+
+
+	else
+	      
+      rewind (lp4)
+      
+      do 12122 ii=1,(9*(nele+isteel)*(nele+isteel)+3*(nele+isteel))/2
+      read(lp4) tku(ii)
+      read(lp4) tkl(ii)    
+12122 continue
+
+      CALL MKDEF1 
+
+      end if
+
+      isyusoku=1     
+
+      CALL SOLVE 
+      !write(*,*)' solving equations finished'        
+      CALL FACTU1
+	         
+	
+	b=sn/rn
+      
+      !write(*,2333) b
+2333	format(d15.5)
+
+
+
+      
+	if(b.lt.CONVERGENCE) then
+	goto 100
+	else
+	goto 200
+	end if
+
+ 200	isyusoku=isyusoku+1
+      if(isyusoku.eq.100000) then
+      write(*,8997)
+8997  format('  can not go to next step')
+      goto 7777
+	end if
+
+      if(istep.eq.MAXNSTEP) then
+      write(*,7207)
+7207  format('  END')
+      goto 7777
+	end if
+ 
+        CALL MKDEF2       
+        CALL SOLVE 
+        CALL FACTU2
+	
+	
+	b=sn/rn    
+      
+22111  format(2i15,E15.5)
+     
+
+
+	if(b.lt.CONVERGENCE) then
+	    goto 100
+	    else
+          if(istep.le.20)then 
+	      if(isyusoku.eq.MAXNITERATION1)then   
+	      goto 100
+            end if
+	    else                
+	      if(isyusoku.eq.MAXNITERATION2)then
+	      goto 100
+            end if
+          end if
+	    goto 200
+	end if
+
+ 100  CONTINUE
+
+       if(ncele.eq.0.0)then
+	     go to 104
+       end if  
+
+              
+                do 101 is1=1,nspg
+                   prestra(1,is1)=stra(1,is1)
+                   prestra(2,is1)=stra(2,is1)
+                   prestres(1,is1)=stres(1,is1)
+                   prestres(2,is1)=stres(2,is1)
+                   prew(1,is1)=w(1,is1)
+                   prew(2,is1)=w(2,is1)                   
+ 101          continue
+ 104          continue
+       
+       if (nsele.eq.0.0)then
+	     go to 105
+       end if  
+
+                do 102 is2=1,nsele
+                   prestrarf(is2)=strarf(is2)
+                   prestresrf(is2)=stresrf(is2)	  
+ 102            continue
+                
+ 105          continue
+
+        if (ncele.eq.0.0.or.nsele.eq.0.0)then
+	     go to 106
+        end if  
+    
+                 do 103  is3=1,nspgli
+                      preslip(is3) = slip(is3)
+                   prestresli(is3) = stresli(is3)
+	             preradstra(is3) = radstra(is3)
+	            preradstres(is3) = radstres(is3)
+                      presa(1,is3) = sa(1,is3)
+                      presa(2,is3) = sa(2,is3)
+                      presb(1,is3) = sb(1,is3)
+                      presb(2,is3) = sb(2,is3)
+                      presc(1,is3) = sc(1,is3)
+                      presc(2,is3) = sc(2,is3)
+	                PREDSO1(IS3)= DSO1(IS3) 
+                      PREDSO2(IS3)= DSO2(IS3) 
+	               PRETMAX1(IS3)= TMAX1(IS3) 
+	               PRETMAX2(IS3)= TMAX2(IS3) 
+	                 PREBDC(IS3)= BDC(IS3)
+	                PREBDRS(IS3)= BDRS(IS3)
+
+ 103             continue
+ 106             continue
+                 
+          
+          call visual2
+          call output_result
+          !call output_result2
+                
+          
+          DO 501 ME1=1,3 
+      	fto1=00              
+	    KN1=KDG(ME1)
+          IF(KN1.NE.0)THEN
+              
+              DO 502 IG1= 1,KN1
+              IF(ME1.EQ.1) IE1=2
+	        IF(ME1.EQ.2) IE1=1
+	        IF(ME1.EQ.3) IE1=0
+              df1=fa(3*ndg(ME1,IG1)-IE1)
+              fto1=fto1+df1
+502           continue
+              
+              fto1=-fto1
+              
+      
+      write(*,'(2i15,E15.5,a5,d13.5)') istep,isyusoku,b,' LOAD=',fto1
+              
+              if (fto1.ge.maxload)then    
+                  write(lp17) 1.0 
+                  goto 7777
+              end if 
+              
+          end if 		
+501       continue
+          
+      write(lp17) 0.0 
+          
+	goto 300    
+
+7777  call output_displacement
+      !call output_steel
+      call output_elmstress
+      !call output_crack
+      
+         end
+
+
+
+C     ************************ MKSTIF SUBROUTINE ****************************
+	SUBROUTINE MKSTIF
+	   USE DEM_MMA
+         USE DEM_GEN1, ONLY: NCELE, NSELE, NELE, ISTEEL, NSPGLI,KIND01 
+	   USE DEM_CON,  ONLY: NSPG
+	   USE DEM_GEN2, ONLY: TKU, TKL
+
+
+      IMPLICIT REAL*8(A-H,O-Z)
+
+	n=3*(nele+isteel)
+      do 200 i=1,n*(n+1)/2
+	tku(i)=0.0
+	tkl(i)=0.0
+ 200  continue
+
+       CALL SKY	
+      
+	if(ncele.eq.0)then
+	goto 71
+	end if
+
+       do 70 is=1,nspg  
+           CALL DEM_BAN (IS)
+	     CALL RESTIF (IS)
+           CALL MAKETM  (IS)
+ 70    continue
+       !write(*,*)' The stiffness materiex for concrete finished'       
+ 71     continue
+
+	if(nsele.eq.0)then
+	goto 91
+	end if
+
+
+
+ 92    continue
+	   CALL MAKETRM (IS)
+ 90    continue
+        !write(*,*)' The stiffness materiex of reinforcement finised'
+ 91    continue
+     
+	if(ncele.eq.0.or.nsele.eq.0.0)then
+	goto 121
+	end if
+
+	 ij=0
+	 it=0
+	 jj2=0
+	 
+
+
+121   continue
+
+      return
+      end
+
+
+C     ************************ SKY SUBROUTINE ****************************
+C---- MAKING SKYLINE INDEX
+C	subroutine sky(isky, nele,nsele, nspg, nsp,nbp,ncp,isteel)
+C	implicit real*8(a-h,o-z)
+C	dimension isky(3*(nele+isteel)),nsp(2,20000),nbp(2,2000),
+C     *	         nap(2,20000),ncp(2,2000)
+C	dimension loc0(2),ixyz(6)
+!     ********************************************************************
+
+
+	SUBROUTINE SKY
+	   USE DEM_MMA
+         USE DEM_GEN1, ONLY: NCELE,NSELE,NELE,ISTEEL, NSPGLI
+	   USE DEM_GEN2, ONLY: TKU, TKL, ISKY
+	   USE DEM_CON,  ONLY: NSPG, NSP
+	   USE DEM_STE,  ONLY: NCP
+	   USE DEM_BON,  ONLY: NBP
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	 DIMENSION  NAP(2, MAXNSPG), LOC0(2), IXYZ(6) 
+
+      do 10 jj=1,3*(nele+isteel)
+	isky(jj)=0
+ 10   continue
+      
+	do 2100 ik=1,nspg
+         nap(1,ik)=nsp(1,ik)
+         nap(2,ik)=nsp(2,ik)
+2100	continue
+         
+       n1=nspg+1
+	 n2=nspg+nsele
+      do 3100 ij=n1,n2
+         nap(1,ij)=ncp(1,ij-nspg)
+         nap(2,ij)=ncp(2,ij-nspg)
+3100  continue
+      
+      if(nspg.eq.0)then
+	goto 242
+	end if
+
+      do 4100 kj=n2+1,n2+nsele+isteel
+         nap(1,kj)=nbp(1,kj-(nspg+nsele))
+	   nap(2,kj)=nbp(2,kj-(nspg+nsele))
+4100  continue
+
+242   continue
+
+      if(nspg.eq.0)then
+	m1=nsele
+	else
+      m1=nspg+2*nsele+isteel
+	end if
+
+	do 5600 ii=1,m1
+      
+      loc0(1)=nap(1,ii)
+      loc0(2)=nap(2,ii)
+
+      K=0
+      DO 7000 I=1,2
+      DO 7000 J=1,3
+      K=K+1
+      IXYZ(K)=3*(loc0(I)-1)+J
+ 7000 CONTINUE
+
+      IMIN=IXYZ(1)
+
+C----- SORT MINIMAM INDEX OF XYZ IN THE ELEMENT
+      DO 7100 I=2,3*2
+      IF(IMIN.GT.IXYZ(I)) IMIN=IXYZ(I)
+ 7100 CONTINUE
+
+C----- MAKE SKYLINE INDEX
+      DO 7200 I=1,3*2
+       J=IXYZ(I)
+       IHEIGHT=J-IMIN+1
+       IF(ISKY(J).LT.IHEIGHT) ISKY(J)=IHEIGHT
+ 7200 CONTINUE
+ 
+!      GOTO 5400
+
+ 5600 CONTINUE
+
+      DO 7400 I=2,3*(nele+isteel)
+      ISKY(I)=ISKY(I-1)+ISKY(I)
+ 7400 CONTINUE
+
+      return
+	end
+
+
+C     ************************ DEM_BAN SUBROUTINE ****************************
+
+	SUBROUTINE DEM_BAN (IS)
+	   USE DEM_MMA
+         USE DEM_GEN1, ONLY: NCELE,KIND0, EG,EEG, EP, TH 
+	   USE DEM_CON,  ONLY: NSPG, NSP, GL, BANE, HH
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+
+	  m1=nsp(1,is)
+	  m2=nsp(2,is)
+	  k1=kind0(m1)      
+	  k2=kind0(m2)
+
+	  h=hh(1,is)+hh(2,is)
+
+        if(k1==1.and.k2==3)then   
+        e=eeg(m2)
+        p=ep(k2)
+        tt=th(k2)
+        else                      
+	  e=(eeg(m1)*hh(1,is)+eeg(m2)*hh(2,is))/h
+	  p=(ep(k1)*hh(1,is)+ep(k2)*hh(2,is))/h
+	  tt=(th(k1)*hh(1,is)+th(k2)*hh(2,is))/h
+        endif
+        
+        bane(1,is)=(e/(1.0-p*p))*(gl(is)*tt/h)
+	  bane(2,is)=(e/(2.0*(1.0+p)))*(gl(is)*tt/h)
+      
+      return
+      end
+
+C     ************************ RESTIF SUBROUTINE ****************************
+c
+	SUBROUTINE RESTIF (IS)
+	   USE DEM_MMA
+         USE DEM_GEN1, ONLY: NCELE,KIND0, EG, EP, TH, COD
+         USE DEM_GEN2, ONLY: GEK
+	   USE DEM_CON,  ONLY: NSPG, NSP, GL, BANE, HH, JA, XYG
+
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+       DIMENSION SFM(6,6)
+
+
+      rkn=bane(1,is)
+	rkt=bane(2,is)
+	rkr=(rkn*(gl(is))**2/12)
+
+      n3=ja(2,is)
+	n4=ja(1,is)
+	m1=nsp(1,is)
+	m2=nsp(2,is)
+
+       x3=cod(1,n3)
+       y3=cod(2,n3)
+	 x4=cod(1,n4)
+	 y4=cod(2,n4)
+        
+	 x1=xyg(1,m1)
+	 y1=xyg(2,m1)
+	 x2=xyg(1,m2)
+	 y2=xyg(2,m2)
+
+       x43= x4-x3
+	 y43= y4-y3
+	  sl= gl(is)  !sqrt(x43*x43+y43*y43)
+
+
+	 x31= x3-x1
+	 y31= y3-y1
+	 x32= x3-x2
+	 y32= y3-y2
+
+	 x41= x4-x1
+	 y41= y4-y1
+	 x42= x4-x2
+	 y42= y4-y2
+
+       xp1= (x41+x31)/2 
+       yp1= (y41+y31)/2 
+       xp2= (x42+x32)/2 
+       yp2= (y42+y32)/2 
+
+       B13= -x43*xp1 - y43*yp1
+	 B16=  x43*xp2 + y43*yp2
+	 B23=  y43*xp1 - x43*yp1
+       B26= -y43*xp2 + x43*yp2
+       
+      sfm(1,1)= (1/sl**2)*(y43*y43*rkn+x43*x43*rkt)
+	sfm(1,2)= (1/sl**2)*(-y43*x43*rkn+y43*x43*rkt)
+	sfm(1,3)= (1/sl**2)*(y43*B13*rkn+x43*B23*rkt)
+	sfm(1,4)= (1/sl**2)*(-y43*y43*rkn-x43*x43*rkt)
+	sfm(1,5)= (1/sl**2)*(y43*x43*rkn-y43*x43*rkt)
+	sfm(1,6)= (1/sl**2)*(y43*B16*rkn+x43*B26*rkt)
+
+	sfm(2,1)= (1/sl**2)*(-y43*x43*rkn+y43*x43*rkt)
+	sfm(2,2)= (1/sl**2)*(x43*x43*rkn+y43*y43*rkt)
+	sfm(2,3)= (1/sl**2)*(-x43*B13*rkn+y43*B23*rkt)
+      sfm(2,4)= (1/sl**2)*(x43*y43*rkn-x43*y43*rkt)
+	sfm(2,5)= (1/sl**2)*(-x43*x43*rkn-y43*y43*rkt)
+	sfm(2,6)= (1/sl**2)*(-x43*B16*rkn+y43*B26*rkt)
+
+      sfm(3,1)= (1/sl**2)*(y43*B13*rkn+x43*B23*rkt)
+	sfm(3,2)= (1/sl**2)*(-x43*B13*rkn+y43*B23*rkt)
+	sfm(3,3)= (1/sl**2)*(B13*B13*rkn+B23*B23*rkt+sl*sl*rkr)
+	sfm(3,4)= (1/sl**2)*(-y43*B13*rkn-x43*B23*rkt)
+	sfm(3,5)= (1/sl**2)*(x43*B13*rkn-y43*B23*rkt)
+	sfm(3,6)= (1/sl**2)*(B13*B16*rkn+B23*B26*rkt-sl*sl*rkr)
+
+	sfm(4,1)= (1/sl**2)*(-y43*y43*rkn-x43*x43*rkt)
+	sfm(4,2)= (1/sl**2)*(x43*y43*rkn-x43*y43*rkt)
+	sfm(4,3)= (1/sl**2)*(-y43*B13*rkn-x43*B23*rkt)
+	sfm(4,4)= (1/sl**2)*(y43*y43*rkn+x43*x43*rkt)
+	sfm(4,5)= (1/sl**2)*(-y43*x43*rkn+y43*x43*rkt)
+	sfm(4,6)= (1/sl**2)*(-y43*B16*rkn-x43*B26*rkt)
+
+	sfm(5,1)= (1/sl**2)*(y43*x43*rkn-y43*x43*rkt)
+	sfm(5,2)= (1/sl**2)*(-x43*x43*rkn-y43*y43*rkt)
+	sfm(5,3)= (1/sl**2)*(x43*B13*rkn-y43*B23*rkt)
+	sfm(5,4)= (1/sl**2)*(-y43*x43*rkn+x43*y43*rkt)
+	sfm(5,5)= (1/sl**2)*(x43*x43*rkn+y43*y43*rkt)
+	sfm(5,6)= (1/sl**2)*(x43*B16*rkn-y43*B26*rkt)
+
+	sfm(6,1)= (1/sl**2)*(y43*B16*rkn+x43*B26*rkt)
+	sfm(6,2)= (1/sl**2)*(-x43*B16*rkn+y43*B26*rkt)
+	sfm(6,3)= (1/sl**2)*(B13*B16*rkn+B23*B26*rkt-sl*sl*rkr)
+	sfm(6,4)= (1/sl**2)*(-y43*B16*rkn-x43*B26*rkt)
+	sfm(6,5)= (1/sl**2)*(x43*B16*rkn-y43*B26*rkt)
+	sfm(6,6)= (1/sl**2)*(B16*B16*rkn+B26*B26*rkt+sl*sl*rkr)
+
+
+      js=0
+      do 30 i=1,6
+	  do 40 j=1,6
+          js=js+1 
+          gek(js)=sfm(i,j)
+ 40     continue
+ 30   continue 
+       
+      return
+	end
+C     ************************ MAKETM SUBROUTINE ****************************
+
+	SUBROUTINE MAKETM (IS)
+	   USE DEM_MMA
+         USE DEM_GEN2, ONLY: GEK, TKL,TKU, ISKY
+	   USE DEM_CON,  ONLY: NSPG, NSP
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+       DIMENSION lOC0(2)
+
+
+      loc0(1)=nsp(1,is)
+	loc0(2)=nsp(2,is)
+
+C----- Total stiffness
+      DO 80 IE=1,2
+      DO 80 JE=1,2
+       IT=(loc0(IE)-1)*3
+       JT=(loc0(JE)-1)*3
+       ISs=(IE-1)*3
+       JS=(JE-1)*3
+      DO 80 KE=1,3
+      DO 80 LE=1,3
+       IIT=IT+KE
+       JJT=JT+LE
+       IIS=ISs+KE
+       JJS=JS+LE
+C---- upper of [K]
+      IF(IIT.LE.JJT)THEN
+       IJS=(3*2)*(IIS-1)+JJS
+       IJT=ISKY(JJT)+IIT-JJT
+       TKU(IJT)=TKU(IJT)+GEK(IJS)
+      IF(IIT.EQ.JJT)TKL(IJT)=TKL(IJT)+GEK(IJS)
+      ELSE
+C---- lower of [K]
+       IJS=(3*2)*(IIS-1)+JJS
+       IJT=ISKY(IIT)+JJT-IIT
+       TKL(IJT)=TKL(IJT)+GEK(IJS)
+      ENDIF
+     
+   80 CONTINUE
+
+	END
+
+
+      
+C     ************************ MAKETRM SUBROUTINE ****************************
+	SUBROUTINE MAKETRM (IS)
+	   USE DEM_MMA
+         USE DEM_GEN2, ONLY: GEK, TKU, TKL, ISKY  
+         USE DEM_STE,  ONLY: NCP
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+       DIMENSION  LOC0(2) 
+
+
+
+      loc0(1)=ncp(1,is)
+	loc0(2)=ncp(2,is)
+
+C----- Total stiffness
+      DO 80 IE=1,2
+      DO 80 JE=1,2
+       IT=(loc0(IE)-1)*3
+       JT=(loc0(JE)-1)*3
+       ISs=(IE-1)*3
+       JS=(JE-1)*3
+      DO 80 KE=1,3
+      DO 80 LE=1,3
+       IIT=IT+KE
+       JJT=JT+LE
+       IIS=ISs+KE
+       JJS=JS+LE
+C---- upper of [K]
+      IF(IIT.LE.JJT)THEN
+       IJS=(3*2)*(IIS-1)+JJS
+       IJT=ISKY(JJT)+IIT-JJT
+       TKU(IJT)=TKU(IJT)+GEK(IJS)
+      IF(IIT.EQ.JJT)TKL(IJT)=TKL(IJT)+GEK(IJS)
+      ELSE
+C---- lower of [K]
+       IJS=(3*2)*(IIS-1)+JJS
+       IJT=ISKY(IIT)+JJT-IIT
+       TKL(IJT)=TKL(IJT)+GEK(IJS)
+      ENDIF
+
+   80 CONTINUE
+
+	END
+
+
+      
+C     ************************ MKDEF1 SUBROUTINE ****************************
+
+ 	SUBROUTINE MKDEF1
+	   USE DEM_MMA
+	   USE DEM_GEN1, ONLY: KUG, NUG, KDG, NDG, DDG, NELE, ISTEEL
+         USE DEM_GEN2, ONLY: IDEF, DEF, DDF
+
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+      
+
+	do 10 i=1,3
+	do 10 j=1,kug(i)
+	def(nug(i,j)*3-3+i)=0.0
+	idef(nug(i,j)*3-3+i)=-1
+ 10   continue
+
+
+	do 20 i=1,3
+	do 20 j=1,kdg(i)
+	def(ndg(i,j)*3-3+i)=ddg(i,j)
+	idef(ndg(i,j)*3-3+i)=-1
+ 20   continue
+
+
+      do 30 i=1,3*(nele+isteel)
+	if(idef(i).eq.-1) then
+	goto 30
+	else
+	def(i)=ddf(i)
+	idef(i)=1
+	end if
+  30  continue
+
+
+	return
+	end
+
+ 
+C     ************************ SKYDECOMP  SUBROUTINE **************************** 
+C      ***** Subroutine for decomposing stiffness matrix *****
+
+ 	SUBROUTINE SKYDECOMP 
+	   USE DEM_MMA
+	   USE DEM_GEN1, ONLY: NELE, ISTEEL, N
+         USE DEM_GEN2, ONLY: TKU, TKL, ISKY, IDEF
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+          
+	ND=N
+
+      DO 1000 K=2,ND
+      IF(IDEF(K).LE.0) GOTO 1000
+      INDSKK=ISKY(K)
+      KH=INDSKK-ISKY(K-1)
+
+C---- Lower decomposition of stiffness matrix
+
+      KKH=K-KH+1
+      K111=K-1
+      DO 2000 I=KKH,K111
+      IF(IDEF(I).LE.0) GOTO 2000
+      IF(I.EQ.1) GOTO 2000
+      INDSKI=ISKY(I)
+      IH=INDSKI-ISKY(I-1)
+      KHP=KH+I-K
+      IS=MIN0(IH,KHP)
+      IF(IS.LE.1)GOTO 2000
+      ISS=I-IS+1
+      KI=ISKY(K)+I-K
+      MI=ISKY(I)+ISS-I
+      KM=ISKY(K)+ISS-K
+      IM1=I-1
+
+
+      DO 2050 M=ISS,IM1
+      IF(IDEF(M).LE.0) GOTO 2080
+      INDSKM=ISKY(M)
+      TKL(KI)=TKL(KI)-TKL(KM)*TKU(MI)/TKU(INDSKM)
+ 2080 CONTINUE
+      MI=MI+1
+      KM=KM+1
+ 2050 CONTINUE
+ 2000 CONTINUE
+
+C---- Upper decomposition of stiffness matrix
+
+      DO 3000 J=KKH,K
+      IF(IDEF(J).LE.0) GOTO 3000
+      IF(J.EQ.1) GOTO 3000
+      JH=ISKY(J)-ISKY(J-1)
+      KHP=KH+J-K
+      JS=MIN0(JH,KHP)
+      IF(JS.LE.1)GOTO 3000
+      JSS=J-JS+1
+      JK=ISKY(K)+J-K
+      MK=ISKY(K)+JSS-K
+      JM=ISKY(J)+JSS-J
+      JM1=J-1
+
+
+      DO 3050 M=JSS,JM1
+      IF(IDEF(M).LE.0) GOTO 3080
+      INDSKM=ISKY(M)
+      TKU(JK)=TKU(JK)-TKU(MK)*TKL(JM)/TKU(INDSKM)
+ 3080 CONTINUE
+      MK=MK+1
+      JM=JM+1
+ 3050 CONTINUE
+      IF(J.EQ.K) TKL(JK)=TKU(JK)
+ 3000 CONTINUE
+ 1000 CONTINUE
+
+      RETURN
+      END     
+
+C     ************************ SOLVE SUBROUTINE **************************** 
+ 	SUBROUTINE SOLVE 
+	   USE DEM_MMA
+	   USE DEM_GEN1, ONLY: NELE,ISTEEL,N
+         USE DEM_GEN2, ONLY: ISYUSOKU ,IDEF,ISKY,DEF, TKU, TKL
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+
+!----- Solve simultaneous equation
+!----! When count of iteration is..
+!----! Zero  ,computing increment of displacement by nodal force
+!----! Other ,computing increment of displacement by residual force
+!----! Method for memorizing is "SKYLINE"
+!----! Method for solving is "Colesky method"
+
+
+!     ***** Skyline method ****************
+ 
+      if(isyusoku.gt.1)then
+	goto 111
+	end if
+
+!----- Decompose stiffness matrix with "Crout decomposition"
+!      CALL SKYDECOMP(TKU,TKL,IDEF,N,ISKY,nele,MAXTK)
+
+!----- Multiply matrixes
+      CALL SKY_MULTI(TKU,TKL,IDEF,N,ISKY,DEF,DEF,nele,MAXTK,
+     &	               -1,1,-1,isteel)
+
+!----- Forward substitution
+ 111  CALL SKY_FWD(TKL,IDEF,N,ISKY,DEF,nele,MAXTK,isteel)
+
+!----- Backward substitution
+      CALL SKY_BKW(TKU,IDEF,N,ISKY,DEF,nele,MAXTK,isteel)
+
+	RETURN
+	END
+
+
+C     ************************ SKY_MULTI SUBROUTINE **************************** 
+C     ***** Subroutine for multiply (and add/sub) matrix *****
+
+      SUBROUTINE SKY_MULTI(TKU,TKL,IDEF,ND,ISKY,X,Y,nele,MAXTK
+     &                     ,IDX,IDY,ISW,isteel)
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      DIMENSION TKU(MAXTK),TKL(MAXTK),IDEF(3*(nele+isteel))
+     &         ,X(3*(nele+isteel)),Y(3*(nele+isteel)),
+     &           ISKY(3*(nele+isteel))
+
+
+
+C----! if free,        Y=A*X
+C----! if given force, Y=Y+A*X
+C----! if fixed,       Y=Y-A*X
+       
+        
+
+      DO 8000 I=1,ND
+      IF(IDEF(I)*IDY.LT.0) GOTO 8000
+      YI=0.0
+      IF(I.EQ.1) GOTO 6500
+      INDSKI=ISKY(I)
+      IK=INDSKI-ISKY(I-1)
+      JJ1=I-IK+1
+      IF(JJ1.EQ.I) GOTO 6500
+      I1=I-1
+      
+      DO 5000 J=JJ1,I1
+      IF(IDEF(J)*IDX.LT.0) GOTO 4000
+      K=INDSKI+J-I
+      YI=YI+X(J)*TKL(K)
+ 4000 CONTINUE
+      K=K+1
+ 5000 CONTINUE
+
+ 6500 CONTINUE
+      DO 7000 J=I,ND
+      IF(IDEF(J)*IDX.LT.0) GOTO 7000
+      INDSKJ=ISKY(J)
+
+      IF(J.EQ.1) GOTO 6900
+
+      JT=J-INDSKJ+ISKY(J-1)+1
+      IF(I.LT.JT) GOTO 7000
+ 6900 CONTINUE
+      K=INDSKJ+I-J
+      YI=YI+X(J)*TKU(K)
+ 7000 CONTINUE
+ 
+      IF(ISW) 7100,7200,7300
+ 7100 Y(I)=Y(I)-YI
+      GOTO 8000
+
+ 7200 Y(I)=YI
+      GOTO 8000
+
+ 7300 Y(I)=Y(I)+YI
+
+ 8000 CONTINUE
+      RETURN
+      END
+
+
+
+C     ************************ SKY_FWD SUBROUTINE **************************** 
+C      ***** Subroutine for skyline forward substitution *****
+
+      SUBROUTINE SKY_FWD(A,IND,ND,INDSK,Y,nele,MAXTK,isteel)
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      DIMENSION A(MAXTK),IND(3*(nele+isteel)),INDSK(3*(nele+isteel)),
+     *	          Y(3*(nele+isteel))
+
+
+      DO 5000 I=1,ND
+      IF(IND(I).LE.0) GOTO 5000
+      INDSKI=INDSK(I)
+      IF(I.EQ.1) GOTO 4000
+
+      INDSKH=INDSK(I-1)
+      JK=INDSKI-INDSKH
+      JH=I-JK+1
+      K=INDSKH+1
+
+      IF(JH.EQ.I) GOTO 4000
+
+      IM1=I-1
+
+      DO 3000 J=JH,IM1
+      IF(IND(J).LE.0) GOTO 2000
+
+      Y(I)=Y(I)-A(K)*Y(J)
+
+ 2000 CONTINUE
+      K=K+1
+
+ 3000 CONTINUE
+
+ 4000 CONTINUE
+      Y(I)=Y(I)/A(INDSKI)
+
+ 5000 CONTINUE
+
+      RETURN
+      END
+
+
+C     ************************ SKY_BKW SUBROUTINE **************************** 
+C     ***** Subroutine for skyline backward substitution *****
+
+      SUBROUTINE SKY_BKW(A,IND,ND,INDSK,Y,nele,MAXTK,isteel)
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      DIMENSION A(MAXTK),IND(3*(nele+isteel)),Y(3*(nele+isteel)),
+     &	       INDSK(3*(nele+isteel))
+
+
+      DO 5000 IC=2,ND
+
+      I=ND-IC+1
+      IF(IND(I).LE.0) GOTO 5000
+      SUM=0.0
+      J1=I+1
+      DO 4000 J=J1,ND
+      IF(IND(J).LE.0) GOTO 4000
+      INDSKJ=INDSK(J)
+      JT=J-INDSKJ+INDSK(J-1)+1
+      IF(I.LT.JT) GOTO 4000
+      K=INDSKJ+I-J
+      SUM=SUM+A(K)*Y(J)
+ 4000 CONTINUE
+
+      INDSKI=INDSK(I)
+      Y(I)=Y(I)-SUM/A(INDSKI)
+
+ 5000 CONTINUE
+
+      RETURN
+      END
+
+
+C     ************************ FACTU1 SUBROUTINE **************************** 
+
+       SUBROUTINE FACTU1
+	    
+	  USE DEM_MMA
+        USE DEM_GEN1, ONLY: NCELE, NSELE, NELE, ISTEEL,NSPGLI
+	  USE DEM_GEN2, ONLY: IDEF, DEF, U, DDF, SN, RN ,FA
+	  USE DEM_CON,  ONLY: NSPG
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION   FA0(3*(MAXNELE+MAXISTEEL))
+
+
+      
+	do 100 jj=1,3*(nele+isteel)
+	fa(jj)=0.0
+ 100  continue
+      
+
+	do 50 i=1,3*(nele+isteel)
+        u(i)=u(i)+def(i)
+ 50   continue
+
+
+c
+      do 60 is=1,nspg
+        CALL STRAIN (IS)
+	  CALL STRESS (IS)
+	  CALL DEM_ACTU (IS)
+        CALL CRACK  (IS)
+ 60   continue
+
+
+      if(NSELE.EQ.0.0)then
+	goto 253
+	end if
+
+      do 65 is=1,nsele
+        CALL STRAINRF (IS)
+        CALL STRESSRF (IS)
+	  CALL DEM_ACTURF (IS)
+ 65   continue
+
+
+      if(ncele.eq.0.OR.NSELE.EQ.0)then
+	goto 253
+	end if
+
+	 ij=0
+	 it=0
+	 jj3=0
+	 JJ4=0
+      do 70 is=1,nspgli
+        CALL RCSLIP    (IS, IJ, IT)
+	  CALL STRESSLI  (IS, JJ3)
+        CALL DEM_ACTULI  (IS, JJ4)
+ 70   continue
+
+      
+253   continue
+
+          do 333 ik=1,3*(nele+isteel)
+	    fa0(ik)=fa(ik)
+333       continue
+
+ 
+ 	rn=0.0
+      do 80 ii=1,(nele+isteel)
+        ii1=1+3*(ii-1)
+	  ii2=2+3*(ii-1)
+	  if(idef(ii1).eq.-1) then
+        rn=rn+(fa(ii1))**2
+        end if      
+         if(idef(ii2).eq.-1) then
+        rn=rn+(fa(ii2))**2
+        end if        
+ 80   continue
+
+  
+        sn=0.0
+	do 90 ij=1,(nele+isteel)
+	  i1=1+3*(ij-1)
+	  i2=2+3*(ij-1)
+	  if(idef(i1).ne.-1) then
+	   rf1=fa0(i1)
+	   sn=sn+rf1**2
+	  end if
+        if(idef(i2).ne.-1) then  
+        rf2=fa0(i2)
+	  sn=sn+rf2**2
+	  end if       
+ 55   continue
+ 90   continue
+
+ 
+      do 200 i=1,3*(nele+isteel)
+	 if(idef(i).eq.-1)then
+	 ddf(i)=0.0
+	 else
+	 ddf(i)=fa(i)
+       end if
+200   continue
+	return
+	end 
+
+
+C     ************************ STRAIN SUBROUTINE **************************** 
+
+       SUBROUTINE STRAIN (IS)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN2, ONLY: U
+	  USE DEM_CON,  ONLY: NSP, JA, XYG, GL, HH, UC, STRA
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION  UU(6), BB(3,6)
+!
+	
+	ii=0
+      do 10 i=1,2
+         me=nsp(i,is)
+	  do 20 j=1,3
+		ii=ii+1
+	    jj=j+(me-1)*3
+	    uu(ii)=u(jj)
+   20   continue
+   10 continue
+       
+	 CALL MKBMAT (IS,BB)
+
+
+      do 30 i=1,3
+      uc(i,is)=0.0
+	  do 40 j=1,6
+		uc(i,is)=uc(i,is)+bb(i,j)*uu(j)
+   40   continue
+   30 continue
+
+   
+	do 50 ii=1,2
+       stra(ii,is)=uc(ii,is)/(hh(1,is)+hh(2,is))
+   50 continue
+
+
+
+      return
+	end
+C     ************************ MKBMAT SUBROUTINE **************************** 
+
+       SUBROUTINE MKBMAT (IS,BB)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1, ONLY: COD
+	  USE DEM_CON,  ONLY: NSP, JA, XYG, GL
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+       DIMENSION BB(3,6)
+
+      n3=ja(2,is)
+	n4=ja(1,is)
+	m1=nsp(1,is)
+	m2=nsp(2,is)
+
+       x3=cod(1,n3)
+       y3=cod(2,n3)
+	 x4=cod(1,n4)
+	 y4=cod(2,n4)
+        
+	 x1=xyg(1,m1)
+	 y1=xyg(2,m1)
+	 x2=xyg(1,m2)
+	 y2=xyg(2,m2)
+
+       x43= x4-x3
+	 y43= y4-y3
+	  sl= gl(is) !sqrt(x43*x43+y43*y43)
+
+	 x31= x3-x1
+	 y31= y3-y1
+	 x32= x3-x2
+	 y32= y3-y2
+
+	 x41= x4-x1
+	 y41= y4-y1
+	 x42= x4-x2
+	 y42= y4-y2
+
+       xp1= (x41+x31)/2 
+       yp1= (y41+y31)/2 
+       xp2= (x42+x32)/2 
+       yp2= (y42+y32)/2 
+
+       d11= -x43*xp1 - y43*yp1
+	 d12=  x43*xp2 + y43*yp2
+	 d21=  y43*xp1 - x43*yp1
+       d22= -y43*xp2 + x43*yp2 
+
+
+      bb(1,1)=y43/sl
+	bb(1,2)=-x43/sl
+	bb(1,3)=d11/sl
+	bb(1,4)=-y43/sl
+	bb(1,5)=x43/sl
+	bb(1,6)=d12/sl
+	bb(2,1)=x43/sl
+	bb(2,2)=y43/sl
+      bb(2,3)=d21/sl
+	bb(2,4)=-x43/sl
+	bb(2,5)=-y43/sl
+	bb(2,6)=d22/sl
+	bb(3,1)=0
+	bb(3,2)=0
+	bb(3,3)=-1
+	bb(3,4)=0
+	bb(3,5)=0
+	bb(3,6)=+1
+
+
+      return
+      end
+C     ************************ STRAINRF SUBROUTINE **************************** 
+
+       SUBROUTINE STRAINRF (IS)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN2, ONLY: U
+        USE DEM_STE,  ONLY: NCP, SL, US,STRARF 
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION  UU(6), BR(3,6)
+
+	
+	ii=0
+      do 10 i=1,2
+         me=ncp(i,is)
+	  do 20 j=1,3
+		ii=ii+1
+	    jj=j+(me-1)*3
+	    uu(ii)=u(jj)
+   20   continue
+   10 continue
+
+         CALL MKBRMAT (IS,BR)
+
+      do 30 i=1,3
+      us(i,is)=0.0
+	  do 40 j=1,6
+		us(i,is)=us(i,is)+br(i,j)*uu(j)
+   40   continue
+       
+   30 continue
+
+      strarf(is)=us(3,is)/sl(is)
+!
+      return
+	end
+C     ************************ MKBRMAT SUBROUTINE **************************** 
+
+       SUBROUTINE MKBRMAT (IS,BR)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1, ONLY: COD, NST
+        USE DEM_STE,  ONLY: SL 
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      Integer s1, s2
+	DIMENSION  BR(3,6)
+
+
+      s1=nst(1,is)
+	s2=nst(2,is)
+      x1=cod(1,s2)-cod(1,s1)
+	y1=cod(2,s2)-cod(2,s1)
+	sl(is)=sqrt(x1*x1+y1*y1)
+	sin1=(y1/sl(is))
+	cos1=(x1/sl(is))
+
+	br(1,1)=-sin1/sl(is)
+	br(1,2)=cos1/sl(is)
+	br(1,3)=1d0
+	br(1,4)=sin1/sl(is)
+	br(1,5)=-cos1/sl(is)
+	br(1,6)=0d0
+    	br(2,1)=-sin1/sl(is)
+	br(2,2)=cos1/sl(is)
+	br(2,3)=0d0
+	br(2,4)=sin1/sl(is)
+	br(2,5)=-cos1/sl(is)
+	br(2,6)=1d0
+      br(3,1)=-cos1
+	br(3,2)=-sin1
+	br(3,3)=0d0
+	br(3,4)=cos1
+	br(3,5)=sin1
+	br(3,6)=0d0
+
+      return
+      end
+
+C     ************************ RCSLIP SUBROUTINE **************************** 
+
+       SUBROUTINE RCSLIP (IS, IJ, IT)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN2, ONLY: U
+        USE DEM_BON,  ONLY: NBP, UL, SLIP
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION  UU(6), BL(3,6)
+
+	
+	ii=0
+      do 10 i=1,2
+         me=nbp(i,is)
+	  do 20 j=1,3
+		ii=ii+1
+	    jj=j+(me-1)*3
+	    uu(ii)=u(jj)
+   20   continue
+   10 continue
+
+           CALL MKBLMAT ( IS, IJ, IT, BL)
+
+      do 30 i=1,3
+      ul(i,is)=0.0
+	  do 40 j=1,6
+		ul(i,is)=ul(i,is)+bl(i,j)*uu(j)
+   40   continue
+   30 continue
+ 
+      slip(is)=ul(1,is)
+
+      return
+	end
+C     ************************ MKBLMAT SUBROUTINE **************************** 
+
+       SUBROUTINE MKBLMAT (IS, IJ, IT,BL)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1, ONLY: NLIN, COD, ISTEEL,IELST
+        USE DEM_CON,  ONLY: XYG   
+        USE DEM_BON,  ONLY: NBP, SL1
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION   JT (MAXISTEEL), BL(3,6)
+
+   
+      jt(1)=0
+	  n1=isteel
+      do 100 jk=1,n1
+	 if(jk.eq.1)then
+	 jt(jk)=jt(jk)+ielst(jk)+1
+	 else
+	 jt(jk)=jt(jk-1)+ielst(jk)+1
+       end if
+
+      if(is.eq.jt(jk))then
+      x1=cod(1,nlin(is))-cod(1,nlin(is-1))  
+      y1=cod(2,nlin(is))-cod(2,nlin(is-1))
+      goto 200
+      end if
+100   continue
+
+       x1=cod(1,nlin(is+1))-cod(1,nlin(is))
+	y1=cod(2,nlin(is+1))-cod(2,nlin(is))
+200   continue
+
+
+	
+	sl1(is)=sqrt(x1*x1+y1*y1)
+	sin1=(y1/sl1(is))
+	cos1=(x1/sl1(is))
+      
+	m4=nlin(is)
+	x0=cod(1,m4)
+      y0=cod(2,m4)
+	m3=nbp(1,is)
+	x2=x0-xyg(1,m3)
+	y2=y0-xyg(2,m3)
+
+      bl(1,1)=-cos1
+	bl(1,2)=-sin1
+	bl(1,3)=cos1*y2-sin1*x2
+	bl(1,4)=cos1
+	bl(1,5)=sin1
+	bl(1,6)=0d0
+     	bl(2,1)=sin1
+	bl(2,2)=-cos1
+	bl(2,3)=-sin1*y2-cos1*x2
+	bl(2,4)=-sin1
+	bl(2,5)=cos1
+	bl(2,6)=0d0
+      bl(3,1)=0d0
+	bl(3,2)=0d0
+	bl(3,3)=-1d0
+	bl(3,4)=0d0
+	bl(3,5)=0d0
+	bl(3,6)=1d0
+	
+      return
+      end
+C     ************************ STRESS SUBROUTINE **************************** 
+
+       SUBROUTINE STRESS (IS)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1
+	  USE DEM_CON
+        use DEM_gen2
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION  SS(2,MAXNSPG), SS1(2,MAXNSPG)
+    
+      if(istep.eq.16) then 
+          if (is.eq.44)then
+           istop=1   
+          end if
+      end if
+      
+      if (istep.eq.19)then
+          if (is.eq.44)then
+              istop=1
+          endif 
+      endif 
+      
+      
+	  h=hh(1,is)+hh(2,is)
+	  m1=nsp(1,is)
+	  m2=nsp(2,is)
+	  k1=kind0(m1)
+	  k2=kind0(m2)
+
+	  tt=(th(k1)*hh(1,is)+th(k2)*hh(2,is))/h
+	  vc=(ep(k1)*hh(1,is)+ep(k2)*hh(2,is))/h
+	  ecc=(eeg(m1)*hh(1,is)+eeg(m2)*hh(2,is))/h
+
+       
+	   ec = ecc/(1.0-vc*vc)
+	   gc = ecc/(2.0*(1.0+vc))
+ 
+       NM1=NSP(1,IS)
+	 NM2=NSP(2,IS)
+
+	 XX1=XYG(1,NM1)
+	 YY1=XYG(2,NM1)
+	 XX2=XYG(1,NM2)
+	 YY2=XYG(2,NM2)
+       
+       
+c     *********************************************************************
+          fc=stresm(1,is)
+          fT=stresm(2,is)
+c     *********************************************************************
+	 
+          
+          
+
+          
+c     ***********   loading point and supporting point ******************
+	  if(kind0(nsp(2,is)).eq.3)then
+ 	    stres(1,is)= ec*stra(1,is)
+	    stres(2,is)= gc*stra(2,is)
+	        goto 300 
+	  end if
+c     *********************************************************************
+
+1011   continue	 
+	 if(stra(1,is).le.0)then    
+	    goto 101 
+	 else if(stra(1,is).gt.0)then  
+	    goto 201
+       end if
+
+
+!     *******************************************************************
+!     ***********            Conpression Model         ******************
+!     ******************************************************************* 
+101    continue 
+          stm1=2.0*fc/ec
+
+	   if(stra(1,is).le. prestra(1,is))then !loading/reroding pass 
+	    go to 103
+        else if (stra(1,is).gt.prestra(1,is))then !unloading pass
+          go to 104
+            end if
+103	  continue  
+c     ****************  loading and re-loading pass *************
+         if (jyd(1,is).ge.0.0)then !loading
+	            go to 105
+		else if (jyd(1,is).lt.0.0)then  !reroding
+		         go to 106
+				 end if 
+
+105                continue  
+c     ****************  loading pass *************
+	   if(stra(1,is).ge.stm1)then   
+	      jyd(1,is)=1   
+	 stres(1,is)=ec*stra(1,is)-(ec*(stra(1,is))**2/(2d0*stm1))
+
+	   else if(stra(1,is).lt.stm1.and.stra(1,is).ge.4d0*stm1)then   
+	      jyd(1,is)=2
+	 stres(1,is)=fc-(0.8*fc/(3d0*stm1))*(stra(1,is)-stm1)
+	 
+	   else if(stra(1,is).lt.4d0*stm1)then  
+	      jyd(1,is)=3
+		  stres(1,is)=0.2*fc
+		  		  
+	   end if
+	    goto 302
+
+
+104	  continue  
+c     ****************  un-loading pass *************	
+            if(jyd(1,is).gt.0.0)then
+	   ss(1,is)= prestra(1,is)
+	      end if
+			 		 
+	   if(ss(1,is).ge.stm1)then
+	      jyd(1,is)=-1
+             ec1= prestres(1,is)/prestra(1,is)
+          stres(1,is)= prestres(1,is)-(ec1*(prestra(1,is)-stra(1,is)))
+
+	   else if(ss(1,is).lt.stm1.and.ss(1,is).ge.4d0*stm1)then
+	      jyd(1,is)=-2
+             ec1= prestres(1,is)/prestra(1,is)
+          stres(1,is)= prestres(1,is)-(ec1*(prestra(1,is)-stra(1,is)))
+
+	   else if(ss(1,is).lt.4d0*stm1)then
+	      jyd(1,is)=-3
+             ec1= prestres(1,is)/prestra(1,is)
+          stres(1,is)= prestres(1,is)-(ec1*(prestra(1,is)-stra(1,is)))
+	   end if
+	   
+	   if (stres(1,is).ge.0.0)then
+	       stres(1,is)=0.0
+	        end if
+	    goto 302
+
+106	  continue  
+c     ****************  re-loading pass *************				 		 
+          if(ss(1,is).ge.stm1)then
+           if (stra(1,is).ge.ss(1,is))then
+	     jyd(1,is)=-4
+             ec4= prestres(1,is)/prestra(1,is)
+          stres(1,is)= prestres(1,is)+(ec4*(stra(1,is)-prestra(1,is)))
+           elseif (stra(1,is).lt.ss(1,is))then
+	 stres(1,is)=ec*stra(1,is)-(ec*(stra(1,is))**2/(2d0*stm1))
+	     jyd(1,is)=1
+             end if
+
+	   else if(ss(1,is).lt.stm1.and.ss(1,is).ge.4d0*stm1)then
+           if (stra(1,is).ge.ss(1,is))then
+	     jyd(1,is)=-5
+             ec4= prestres(1,is)/prestra(1,is)
+          stres(1,is)= prestres(1,is)+(ec4*(stra(1,is)-prestra(1,is)))
+           elseif (stra(1,is).lt.ss(1,is))then
+	 stres(1,is)=fc-(0.8*fc/(3d0*stm1))*(stra(1,is)-stm1)	 
+	     jyd(1,is)=2
+             end if
+
+	   else if(stra(1,is).lt.4d0*stm1)then
+           if (stra(1,is).ge.ss(1,is))then
+	     jyd(1,is)=-6
+             ec4= prestres(1,is)/prestra(1,is)
+          stres(1,is)= prestres(1,is)+(ec4*(stra(1,is)-prestra(1,is)))
+           elseif (stra(1,is).lt.ss(1,is))then
+		  stres(1,is)=0.2*fc
+	     jyd(1,is)=3     
+             end if
+
+	        end if
+	    goto 302
+
+201       continue
+          
+
+!     **************************************************
+!     **********        tensile model     **************
+!     **************************************************
+
+!     *************   model 2 ( Deleft model)   **************************************
+c     ****************  loading, re-loading and un-loading pass *************
+          stm2= ft/ec
+	    xhh=hh(1,is)+hh(2,is)
+         Dmax=19.00
+         gf=10.0*Dmax**(1.0/3.0)*(ABS(fc))**(1.0/3.0) !(N/m)
+c     *******************************************************
+          
+	     Wc=5.14*bgf(is)/ft  
+c          Wc=5.14*gf/ft
+C	     Wc= 160.0   
+c     ******************************************************
+	     c1= 3.0
+	     c2= 6.93
+           w(1,is)= (stra(1,is)-stm2)*xhh*(1000000.0/1000.0)
+      	
+          if (w(1,is).le.0.0)then
+	    w(1,is)=0.0
+          end if
+          
+          dispcrackwidth=0.2d0*(1000000.0/1000.0)
+          if (w(1,is).gt.dispcrackwidth)then
+              dispcrackspg(is)=1
+          endif
+!          dispcrackstrain=0.00009d0+0.1d0/xhh
+!          if(stra(1,is).gt.dispcrackstrain)then
+!              dispcrackspg(is)=1
+!          endif
+              
+      
+          if(w(1,is).eq.0.0)then
+              if (stra(1,is).gt.prestra(1,is))then
+	        go to 202 
+              elseif (stra(1,is).le.prestra(1,is))then
+              go to 203
+	        end if
+	    else if (w(1,is).gt.0.0)then
+              if (w(1,is).gt.prew(1,is))then
+	        go to 202 
+              elseif (w(1,is).le.prew(1,is))then
+              go to 203
+	        end if
+          end if
+          
+202	  continue  
+c     ****************  loading and re-loading pass *************
+          if (jyd(1,is).ge.0.0)then
+          go to 204
+          else if (jyd(1,is).lt.0.0)then
+          go to 205
+          end if 
+204	  continue  
+c     ****************  loading pass *************				 		 
+	  if(w(1,is).eq.0.0)then
+	     stres(1,is)=ec*stra(1,is)
+	     jyd(1,is)=1.0
+	  else if(w(1,is).gt.0.0.and.w(1,is).lt.wc)then
+      stres(1,is)=(ft)*((1+(c1*(w(1,is)/wc))**3)*exp(-1*c2*(w(1,is)/wc))
+     *             -(w(1,is)/wc)*(1+c1**3)*exp(-c2))  
+	              jyd(1,is)=2.0
+		  else if(w(1,is).ge.Wc)then
+	     stres(1,is)=0.0
+           jyd(1,is)=3.0
+           
+	  end if
+	    goto 302
+
+203	  continue  
+c     ****************  un-loading pass *************	
+          if (jyd(1,is).gt.0.0)then
+   	  if(w(1,is).eq.0.0)then          
+	        ss(1,is)=prestra(1,is)
+	  else if(w(1,is).gt.0.0)then
+	        ss1(1,is)=prew(1,is)
+	        end if
+               end if
+               
+	  if(w(1,is).eq.0.0)then
+	  if(ss(1,is).le.stm2)then
+            
+            
+	     jyd(1,is)=-1
+             ec4= prestres(1,is)/prestra(1,is)
+          stres(1,is)= prestres(1,is)-(ec4*(prestra(1,is)-stra(1,is)))
+                end if
+                
+	  elseif(w(1,is).gt.0.0)then
+	   if(ss1(1,is).gt.0.0.and.ss1(1,is).lt.wc)then
+	     jyd(1,is)=-2	  
+             ec5= prestres(1,is)/(prew(1,is)+stm2*xhh*1000.0)
+         stres(1,is)= prestres(1,is)-(ec5*(prew(1,is)-w(1,is)))
+
+		  else if(ss1(1,is).ge.Wc)then
+          jyd(1,is)=-3
+	     stres(1,is)=0.0
+	     
+	  end if
+          end if
+
+	   if (stres(1,is).le.0.0)then
+	       stres(1,is)=0.0
+	        end if
+	    goto 302
+
+
+205	  continue  
+c     ****************  re-loading pass *************	
+			 		 
+	  if(w(1,is).eq.0.0)then
+           if (stra(1,is).le.ss(1,is))then
+	     jyd(1,is)=-4
+             ec4= prestres(1,is)/prestra(1,is)
+          stres(1,is)= prestres(1,is)+(ec4*(stra(1,is)-prestra(1,is)))
+           elseif (stra(1,is).gt.ss(1,is))then
+      stres(1,is)=ec*stra(1,is)
+	     jyd(1,is)=1
+             end if
+             
+	  elseif(w(1,is).gt.0.0)then
+	   if(ss1(1,is).gt.0.0.and.ss1(1,is).lt.wc)then
+          if (w(1,is).le.ss1(1,is))then
+	     jyd(1,is)=-5
+             ec5= prestres(1,is)/(prew(1,is)+stm2*xhh*1000.0)
+          stres(1,is)= prestres(1,is)+(ec5*(w(1,is)-prew(1,is)))
+           elseif (w(1,is).gt.ss1(1,is))then
+	stres(1,is)=(ft)*(1+(c1*(w(1,is)/wc))**3)*exp(-1*c2*(w(1,is)/wc))
+     *             -(w(1,is)/wc)*(1+c1**3)*exp(-c2)
+	     jyd(1,is)=2
+	     
+               end if
+
+		    else if(ss1(1,is).ge.wc)then
+               if (w(1,is).le.ss1(1,is))then
+	           jyd(1,is)=-6
+	                 stres(1,is)=0.0
+	                 
+                elseif (w(1,is).gt.ss1(1,is))then
+	              stres(1,is)=0.0
+	             jyd(1,is)=3
+	             
+                end if
+	       end if
+           end if
+	    goto 302
+c       ********************************************************************
+
+
+
+
+c     ************************* shear stress *************************
+302   continue
+!     shear fracture criterion
+
+          stm2= ft/ec
+          af=8d0
+          
+	    xhh=hh(1,is)+hh(2,is)
+!	    stratu= (WC/1000000.0*1000.0/XHH)+(stm2)
+          stratu= (WC/1000000.0*1000.0/XHH)+(stm2)
+          
+	if(stra(2,is).ge.0)then
+	     GO TO 303
+	elseif(stra(2,is).LT.0)then
+	     GO TO 304
+	end if 
+
+
+303   continue
+
+          r=37.0*3.14159/180.0
+          fs=-0.138*fc
+          
+	    if(stres(1,is).ge.0.5*fc)then
+	     stresm(3,is)=fs-stres(1,is)*tan(r) 
+	    else 
+	     stresm(3,is)=fs-0.5*fc*tan(r)
+	    end if
+  
+	   tm=stresm(3,is)
+	   
+	   stm2=ft/ec
+	   stm3=tm/gc
+	   rus1=0.004
+	   rus2=0.016
+
+           w(2,is)= (stra(2,is)-stm3)*xhh*(1000000.0/1000.0)
+		if (w(2,is).le.0.0)then
+	    w(2,is)=0.0
+	     end if
+
+c     ****************  loading, re-loading and un-loading pass *************
+        if(stra(2,is).ge.prestra(2,is))then
+	         go to 305 
+        elseif(stra(2,is).lt.prestra(2,is))then
+	         go to 306
+                 end if
+305   continue
+c     ****************  loading and re-loading pass *************
+         if (jyd(2,is).ge.0.0)then
+	            go to 307
+		else if (jyd(2,is).lt.0.0)then
+		         go to 308
+				 end if 
+
+
+307   continue
+c     ****************  loading pass *************
+	   if(stra(1,is).ge.0.0)then
+	    if(stra(1,is).ge.stratu)then
+	    stres(2,is)= 0.0                
+	      jyd(2,is)=3
+		goto 300
+	    end if
+	   else
+	    if(stra(1,is).le.4.0*stm1)then
+	    stres(2,is)=0.0           
+	      jyd(2,is)=3
+	    goto 300
+	    end if
+	   end if
+
+         ex2=stm3/stra(2,is)*exp(-5.0/rus1*(stra(2,is)-stm3))
+               EX3=1.0
+               
+       if(stra(1,is).le.stm2)then        
+	     if(stra(2,is).le.stm3)then
+	       stres(2,is)=gc*stra(2,is)
+	      jyd(2,is)=1
+	     elseif(stra(2,is).gt.stm3.and.stra(2,is).lt.rus1)then 
+            stres(2,is)=ex2*gc*stra(2,is)   
+	      jyd(2,is)=2
+	     elseif(stra(2,is).ge.rus1)then 
+            stres(2,is)=0.0  
+	      jyd(2,is)=3
+	     end if
+
+
+       else if(stra(1,is).gt.stm2)then      
+	     if(stra(2,is).le.stm3)then
+	       stres(2,is)=gc*stra(2,is)*ex3
+	      jyd(2,is)=1
+	     elseif(stra(2,is).gt.stm3.and.stra(2,is).lt.rus1)then 
+            stres(2,is)=ex2*gc*stra(2,is)*ex3   
+	      jyd(2,is)=2
+	     elseif(stra(2,is).ge.rus1)then 
+            stres(2,is)=0.0  
+	      jyd(2,is)=3
+	     end if
+      end if
+	  
+               go to 300
+
+306   continue
+c     ****************  un-loading pass *************
+          if(jyd(2,is).gt.0.0)then
+	     ss(2,is)= prestra(2,is)
+	             end if
+
+   
+	     if(ss(2,is).le.stm3)then
+	       jyd(2,is)=-1 
+             gc2= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)-(gc2*(prestra(2,is)-stra(2,is)))
+          
+	     elseif(ss(2,is).gt.stm3.and.ss(2,is).lt.rus1)then 
+	       jyd(2,is)=-2
+             gc2= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)-(gc2*(prestra(2,is)-stra(2,is)))    
+	     elseif(ss(2,is).ge.rus1)then 
+	       jyd(2,is)=-3
+             gc2= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)-(gc2*(prestra(2,is)-stra(2,is)))
+           end if
+
+	   if (stres(2,is).le.0.0)then
+	       stres(2,is)=0.0
+	        end if
+	        
+               go to 300
+
+308   continue
+
+  
+        ex2=stm3/stra(2,is)*exp(-5.0/rus1*(stra(2,is)-stm3))
+                 
+        EX3=1.0
+                  	  
+	     if(ss(2,is).le.stm3)then
+              if (stra(2,is).le.ss(2,is))then
+	       jyd(2,is)=-4 
+             gc1= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)+(gc1*(stra(2,is)-prestra(2,is)))
+              elseif (stra(2,is).gt.ss(2,is))then
+    	         if(stra(1,is).le.4d0*stm1)then
+	           stres(2,is)= 0.0    
+	               jyd(2,is)=3
+           elseif(stra(1,is).ge.4d0*stm1.and.stra(1,is).le.stm2)then        
+	       stres(2,is)=gc*stra(2,is)
+	          jyd(2,is)=1       
+	         else if(stra(1,is).gt.stm2.and.stra(1,is).lt.stratu)then      
+	       stres(2,is)=ex3*gc*stra(2,is)    
+	          jyd(2,is)=1	        
+	         else if(stra(1,is).gt.stratu)then      
+	       stres(2,is)=0.0	        
+	          jyd(2,is)=3       
+	            end if
+	            end if
+
+
+	       elseif(ss(2,is).gt.stm3.and.ss(2,is).lt.rus1)then 
+             if (stra(2,is).le.ss(2,is))then
+	       jyd(2,is)=-5
+             gc1= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)+(gc1*(stra(2,is)-prestra(2,is)))
+              elseif (stra(2,is).gt.ss(2,is))then
+    	         if(stra(1,is).le.4d0*stm1)then
+	           stres(2,is)= 0.0
+	               jyd(2,is)=3
+           elseif(stra(1,is).ge.4d0*stm1.and.stra(1,is).le.stm2)then        
+	       stres(2,is)=gc*stra(2,is)*ex2
+	          jyd(2,is)=2      
+	         else if(stra(1,is).gt.stm2.and.stra(1,is).lt.stratu)then      
+	       stres(2,is)=ex3*gc*stra(2,is)*ex2    
+	          jyd(2,is)=2	          
+	         else if(stra(1,is).gt.stratu)then      
+	       stres(2,is)=0.0
+	          jyd(2,is)=3       
+	            end if
+	            end if
+
+ 	       elseif(ss(2,is).ge.rus1)then 
+              if (stra(2,is).le.ss(2,is))then
+	       jyd(2,is)=-6 
+          stres(2,is)= 0.0
+              elseif (stra(2,is).gt.ss(2,is))then
+	       jyd(2,is)=3 
+          stres(2,is)= 0.0
+               end if	
+              
+                  	          
+                 end if	  
+	  
+		   if (stres(2,is).le.0.0)then
+	       stres(2,is)=0.0
+	        end if
+  
+               go to 300
+
+
+304   continue
+!     shear fracture criterion(stra<0)(negative shear)
+          r=37*3.14159/180.0
+          fs=0.138*fc
+
+	    if(stres(1,is).ge.0.5*fc)then
+	     stresm(3,is)=fs+stres(1,is)*tan(r) 
+	    else if(stres(1,is).lt.0.5*fc)then
+	     stresm(3,is)=fs+0.5*fc*tan(r)
+	    end if
+	    
+!     shearing model(stra<0)	  
+	   tm=stresm(3,is)
+        stm2=ft/ec
+	   stm3=tm/gc
+	   rus1=-0.004
+	   rus2=-0.016
+	   
+           w(2,is)= (stra(2,is)-stm3)*xhh*(1000000.0/1000.0)
+		if (w(2,is).ge.0.0)then
+	    w(2,is)=0.0
+	     end if
+
+c     ****************  loading, re-loading and un-loading pass *************
+        if(stra(2,is).le.prestra(2,is))then
+	         go to 309 
+        elseif(stra(2,is).gt.prestra(2,is))then
+	         go to 310
+                 end if
+309   continue
+c     ****************  loading and re-loading pass *************
+         if (jyd(2,is).ge.0.0)then
+	            go to 311
+		else if (jyd(2,is).lt.0.0)then
+		         go to 312
+				 end if 
+
+311   continue
+c     ****************  loading  pass *************
+	   if(stra(1,is).ge.0.0)then
+	    if(stra(1,is).ge.stratu)then
+	    stres(2,is)= 0.0 
+	       jyd(2,is)=3
+		goto 300
+	    end if
+	   else
+	    if(stra(1,is).le.4d0*stm1)then
+	    stres(2,is)= 0.0    
+	       jyd(2,is)=3
+	    goto 300
+	    end if
+	   end if
+
+
+         ex2=stm3/stra(2,is)*exp(-5.0/rus1*(stra(2,is)-stm3))
+         
+                  EX3=1.0
+                  	        
+	 if(stra(1,is).le.stm2)then 
+	     if(stra(2,is).ge.stm3)then
+		   stres(2,is)=gc*stra(2,is)
+	       jyd(2,is)=1
+
+
+	     else if(stra(2,is).lt.stm3.and.stra(2,is).gt.rus1)then 
+             stres(2,is)=ex2*gc*stra(2,is)  
+	       jyd(2,is)=2
+	     else if(stra(2,is).le.rus1)then 
+	   stres(2,is)= 0.0 
+	       jyd(2,is)=3
+	     end if
+	       
+
+
+        else if(stra(1,is).gt.stm2)then	      
+	     if(stra(2,is).ge.stm3)then
+	       stres(2,is)=ex3*gc*stra(2,is)
+	       jyd(2,is)=1
+
+
+	     else if(stra(2,is).lt.stm3.and.stra(2,is).gt.rus1)then 
+	   stres(2,is)=ex2*gc*stra(2,is)*ex3  
+	       jyd(2,is)=2   	       
+	     else if(stra(2,is).le.rus1)then 
+	   stres(2,is)= 0.0 
+	       jyd(2,is)=3	       
+	      end if
+	      
+	  end if	
+	  
+	  
+	  
+        go to 300
+
+
+   
+310   continue
+c     ****************  un-loading  pass *************
+          if(jyd(2,is).gt.0.0)then
+	     ss(2,is)= prestra(2,is)
+	             end if
+
+
+       
+	     if(ss(2,is).ge.stm3)then
+             gc3= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)-(gc3*(prestra(2,is)-stra(2,is)))
+	       jyd(2,is)=-1
+	    	ELSEif(ss(2,is).LT.stm3.AND.ss(2,is).gT.rus1)then
+             gc3= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)-(gc3*(prestra(2,is)-stra(2,is)))
+	       jyd(2,is)=-2
+
+	      ELSEif(ss(2,is).le.rus1)then
+             gc3= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)-(gc3*(prestra(2,is)-stra(2,is)))
+	       jyd(2,is)=-3
+	     end if
+
+
+		   if (stres(2,is).ge.0.0)then
+	       stres(2,is)=0.0
+	        end if
+	       go to 300
+
+
+312   continue
+
+
+        ex2=stm3/stra(2,is)*exp(-5.0/rus1*(stra(2,is)-stm3))
+C	   ex3=stm2/stra(1,is)*exp(-(0.3/stratu)*(stra(1,is)-stm2))
+                  EX3=1.0
+                  
+	     if(ss(2,is).ge.stm3)then
+              if (stra(2,is).ge.ss(2,is))then
+	       jyd(2,is)=-3
+             gc1= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)+(gc1*(stra(2,is)-prestra(2,is)))
+              elseif (stra(2,is).lt.ss(2,is))then
+    	         if(stra(1,is).le.4d0*stm1)then
+	           stres(2,is)= 0.0           
+	               jyd(2,is)=3
+         elseif(stra(1,is).ge.4d0*stm1.and.stra(1,is).le.stm2)then        
+	       stres(2,is)=gc*stra(2,is)
+	          jyd(2,is)=1       
+	         else if(stra(1,is).gt.stm2.and.stra(1,is).lt.stratu)then      
+	       stres(2,is)=ex3*gc*stra(2,is) 
+	          jyd(2,is)=1
+	         else if(stra(1,is).gt.stratu)then      
+	       stres(2,is)=0.0  
+	          jyd(2,is)=3       
+	            end if
+	            end if
+
+
+	       elseif(ss(2,is).lt.stm3.and.ss(2,is).ge.rus1)then 
+              if (stra(2,is).ge.ss(2,is))then
+	       jyd(2,is)=-5
+             gc1= prestres(2,is)/prestra(2,is)
+          stres(2,is)= prestres(2,is)+(gc1*(stra(2,is)-prestra(2,is)))
+              elseif (stra(2,is).lt.ss(2,is))then
+   	         if(stra(1,is).le.4d0*stm1)then
+	           stres(2,is)= 0.0   
+	               jyd(2,is)=3
+           elseif(stra(1,is).ge.4d0*stm1.and.stra(1,is).le.stm2)then        
+	       stres(2,is)=ex2*gc*stra(2,is)
+	          jyd(2,is)=2      
+	         else if(stra(1,is).gt.stm2.and.stra(1,is).lt.stratu)then      
+	       stres(2,is)=ex2*gc*stra(2,is)*ex3
+	          jyd(2,is)=2
+	         else if(stra(1,is).gt.stratu)then      
+	       stres(2,is)=0.0  
+	          jyd(2,is)=3       
+	            end if
+	            end if
+	            
+	            
+	       elseif(ss(2,is).le.rus1)then 
+              if (stra(2,is).ge.ss(2,is))then
+	       jyd(2,is)=-6 
+          stres(2,is)= 0.0
+
+              elseif (stra(2,is).lt.ss(2,is))then
+	       jyd(2,is)=3 
+          stres(2,is)= 0.0
+               end if	   	          
+                 end if	  
+	  
+
+
+		   if (stres(2,is).ge.0.0)then
+	       stres(2,is)=0.0
+	        end if
+	    go to 300
+	  	  
+	       
+
+300   continue
+
+	return
+	end
+C     ************************ STRESSRF SUBROUTINE **************************** 
+	
+       SUBROUTINE STRESSRF (IS)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1, ONLY: COD, NST, KIND01, EG
+        USE DEM_STE
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION SSRF(MAXNSELE)
+
+	   	  
+        IM=KIND01(IS)
+        
+       if(kind01(is).eq.2) goto 2222
+       if(kind01(is).eq.3) goto 2222	  
+	 if(kind01(is).eq.5) goto 2222
+       if(kind01(is).eq.4) goto 3333
+	 
+C       ************* STEEL REINFORCEMENT *******
+2222   continue
+      if(strarf(is).le.0)then
+         if(kind01(is).eq.2) then
+              stmr1(is)=-(stresmrf(1,is)/eg(im))   
+              stmr2(is)=-0.014                    
+         elseif(kind01(is).eq.3) then
+              stmr1(is)=-(stresmrf(1,is)/eg(im))     
+              stmr2(is)=-0.014                    
+         elseif(kind01(is).eq.5) then
+              stmr1(is)=-(stresmrf(1,is)/eg(im))   
+              stmr2(is)=-0.014                    
+         end if
+	    goto 110
+
+      else if(strarf(is).gt.0)then
+         if(kind01(is).eq.2) then
+              stmr1(is)=(stresmrf(1,is)/eg(im))   
+              stmr2(is)=0.014                    
+         elseif(kind01(is).eq.3) then
+              stmr1(is)=(stresmrf(1,is)/eg(im))   
+              stmr2(is)=0.014                    
+         elseif(kind01(is).eq.5) then
+              stmr1(is)=(stresmrf(1,is)/eg(im))   
+              stmr2(is)=0.014                    
+         end if
+	    goto 210
+      end if   
+	    
+!     ********   compression model   *************** 
+110     CONTINUE
+	  if(strarf(is).le.prestrarf(is))then
+	         go to 111
+	  elseif(strarf(is).gt.prestrarf(is))then
+               go to 112
+	     end if
+
+111     CONTINUE
+c     ************  loading and re-loading pass **************
+          if (jydrf(is).ge.0.0)then
+	         go to 1111
+			 else if (jydrf(is).lt.0.0)then
+			 go to 1112
+			 end if
+			   
+1111     CONTINUE
+c     ****************** loading pass ******************
+	  if(strarf(is).ge.stmr1(is))then
+		  stresrf(is)=eg(im)*strarf(is)
+	     jydrf(is)=1
+        elseif(strarf(is).lt.stmr1(is).and.strarf(is).ge.stmr2(is))then
+	 stresrf(is)=-stresmrf(1,is)
+	     jydrf(is)=2
+        elseif(strarf(is).lt.stmr2(is))then
+	 stresrf(is)=-stresmrf(1,is)-egs(is)*(stmr2(is)-strarf(is))
+	     jydrf(is)=3
+	  end if
+         goto 4444
+
+112     CONTINUE
+c     ************    unloading pass **************
+         if (jydrf(is).gt.0.0)then
+	   ssrf(is)=prestrarf(is)
+	         end if
+	  if(ssrf(is).ge.stmr1(is))then
+	   stresrf(is)=prestresrf(is)-eg(im)*(prestrarf(is)-strarf(is))
+	     jydrf(is)=-1
+        elseif(ssrf(is).lt.stmr1(is).and.ssrf(is).ge.stmr2(is))then
+	   stresrf(is)=prestresrf(is)-eg(im)*(prestrarf(is)-strarf(is))
+	     jydrf(is)=-2
+        elseif(ssrf(is).lt.stmr2(is))then
+	   stresrf(is)=prestresrf(is)-eg(im)*(prestrarf(is)-strarf(is))
+	     jydrf(is)=-3
+	  end if
+          if(stresrf(is).gt.0.0)then
+             stresrf(is)=0.0
+          end if
+         goto 4444
+
+1112     CONTINUE
+c     ****************** re-loading pass ******************
+	  if(ssrf(is).ge.stmr1(is))then
+	   if (strarf(is).ge. ssrf(is))then
+	   stresrf(is)=prestresrf(is)+eg(im)*(strarf(is)-prestrarf(is))
+	     jydrf(is)=-4
+	   elseif (strarf(is).lt.ssrf(is))then      
+		  stresrf(is)=eg(im)*strarf(is)
+	     jydrf(is)=1
+	      end if
+
+        elseif(ssrf(is).lt.stmr1(is).and.ssrf(is).ge.stmr2(is))then
+		   if (strarf(is).ge. ssrf(is))then
+	   stresrf(is)=prestresrf(is)+eg(im)*(strarf(is)-prestrarf(is))
+	     jydrf(is)=-5
+	   elseif (strarf(is).lt.ssrf(is))then      
+	   stresrf(is)=-stresmrf(1,is)
+	     jydrf(is)=2
+	      end if
+
+
+        elseif(ssrf(is).lt.stmr2(is))then
+		   if (strarf(is).ge. ssrf(is))then
+	   stresrf(is)=prestresrf(is)+eg(im)*(strarf(is)-prestrarf(is))
+	     jydrf(is)=-6
+	   elseif (strarf(is).lt.ssrf(is))then      
+	 stresrf(is)=-stresmrf(1,is)-egs(is)*(stmr2(is)-strarf(is))
+	     jydrf(is)=3
+	      end if
+	  end if
+         goto 4444
+
+
+
+
+!     *************    tension model   *********************
+210     CONTINUE
+	  if(strarf(is).ge.prestrarf(is))then
+	         go to 211
+	  elseif(strarf(is).lt.prestrarf(is))then
+               go to 212
+	     end if
+
+211     CONTINUE
+c     ************  loading and re-loading pass **************
+          if (jydrf(is).ge.0.0)then
+	         go to 2111
+			 else if (jydrf(is).lt.0.0)then
+			 go to 2112
+			 end if
+
+2111     CONTINUE
+c     ************  loading pass **************
+	  if(strarf(is).le.stmr1(is))then
+		  stresrf(is)=eg(im)*strarf(is)
+	     jydrf(is)=1
+        elseif(strarf(is).gt.stmr1(is).and.strarf(is).le.stmr2(is))then
+	stresrf(is)=stresmrf(1,is)
+	     jydrf(is)=2
+        elseif(strarf(is).gt.stmr2(is))then
+	stresrf(is)=stresmrf(1,is)+egs(is)*(strarf(is)-stmr2(is))
+	     jydrf(is)=3
+	  end if
+       goto 4444
+
+212     CONTINUE
+c     ************    unloading pass **************
+         if (jydrf(is).gt.0.0)then
+            ssrf(is)= prestrarf(is)
+	     end if
+
+	  if(ssrf(is).le.stmr1(is))then
+         stresrf(is)=prestresrf(is)-(eg(im)*(prestrarf(is)-strarf(is)))   
+	     jydrf(is)=-1
+        elseif(ssrf(is).gt.stmr1(is).and.ssrf(is).le.stmr2(is))then
+         stresrf(is)=prestresrf(is)-(eg(im)*(prestrarf(is)-strarf(is)))  
+	  	     jydrf(is)=-2  
+        elseif(ssrf(is).gt.stmr2(is))then
+         stresrf(is)=prestresrf(is)-(eg(im)*(prestrarf(is)-strarf(is)))  
+	  	     jydrf(is)=-3
+	  end if
+
+          if(stresrf(is).lt.0.0)then
+             stresrf(is)=0.0
+          end if
+       goto 4444
+
+2112     CONTINUE
+c     ************  re-loading pass **************
+	  if(ssrf(is).le.stmr1(is))then
+	   if (strarf(is).le. ssrf(is))then
+	   stresrf(is)=prestresrf(is)+eg(im)*(strarf(is)-prestrarf(is))
+	     jydrf(is)=-4
+	   elseif (strarf(is).gt.ssrf(is))then      
+		  stresrf(is)=eg(im)*strarf(is)
+	     jydrf(is)=1
+	      end if
+
+        elseif(ssrf(is).gt.stmr1(is).and.ssrf(is).le.stmr2(is))then
+		   if (strarf(is).le. ssrf(is))then
+	   stresrf(is)=prestresrf(is)+eg(im)*(strarf(is)-prestrarf(is))
+	     jydrf(is)=-5
+	   elseif (strarf(is).Gt.ssrf(is))then      
+	stresrf(is)=stresmrf(1,is)
+	     jydrf(is)=2
+	      end if
+
+        elseif(ssrf(is).gt.stmr2(is))then
+		   if (strarf(is).le. ssrf(is))then
+	   stresrf(is)=prestresrf(is)+eg(im)*(strarf(is)-prestrarf(is))
+	     jydrf(is)=-6
+	   elseif (strarf(is).Gt.ssrf(is))then      
+	stresrf(is)=stresmrf(1,is)+egs(is)*(strarf(is)-stmr2(is))
+	     jydrf(is)=3
+	      end if
+	  end if
+         goto 4444
+
+
+C      ************ FRP SHEET *****************
+3333   continue
+	 if(strarf(is).le.0)then
+         stmr1(is)=-(stresmrf(1,is)/eg(im))   
+	    goto 310
+	 else if(strarf(is).gt.0)then
+         stmr1(is)=(stresmrf(1,is)/eg(im))   
+	    goto 410
+	 end if      
+C     compression model 
+310     continue         
+	  if(strarf(is).ge.stmr1(is))then
+		  stresrf(is)=eg(im)*strarf(is)
+        elseif(strarf(is).lt.stmr1(is))then
+		  stresrf(is)=0.00
+	  end if
+       goto 4444
+
+!     tension model
+410     continue	  
+	  if(strarf(is).le.stmr1(is))then
+		  stresrf(is)=eg(im)*strarf(is)
+        elseif(strarf(is).gt.stmr1(is))then
+		  stresrf(is)=0.00
+	  end if
+       goto 4444
+C
+
+4444  continue
+  
+
+	return
+	end
+
+
+C     ************************ STRESSLI SUBROUTINE ****************************                
+
+       SUBROUTINE STRESSLI (IS, JJ3)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1
+	  USE DEM_CON
+	  USE DEM_STE
+        USE DEM_BON
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+      DIMENSION  JT(MAXISTEEL), 
+     * SSLI(2, MAXNSPGLI), X3(MAXNSPGLI), Y3(MAXNSPGLI)
+
+C     ************ FOR DELFT BOND MODEL ********
+       DIMENSION SSLI1(2, MAXNSPGLI), SSLI2(2, MAXNSPGLI),
+     * SA1(MAXNSPGLI), SA2(MAXNSPGLI), SB1(MAXNSPGLI), SB2(MAXNSPGLI),
+     * SC1(MAXNSPGLI), SC2(MAXNSPGLI)
+
+C     ************ DR./ SATO BOND MODEL FOR FRP ********
+	 DIMENSION MAXIS1(MAXNSPGLI), MAXIS2(MAXNSPGLI), 
+     *  MAXIS3(MAXNSPGLI)
+
+C     ************ BOND DETERIOATION MODEL ********
+       DIMENSION XM(MAXNSPGLI), YM(MAXNSPGLI), 
+     *  XL1(MAXNSPGLI, MAXNSPG), YL1(MAXNSPGLI,MAXNSPG), 
+     *  XLA(MAXNSPGLI,MAXNSPG), YLA(MAXNSPGLI,MAXNSPG), XLM(MAXNSPG),
+     *  ISM(MAXNSPG),XLN(MAXNSPGLI), ISN(MAXNSPGLI) 
+c     *  XL2(MAXNSPGLI,MAXNSPG), YL2(MAXNSPGLI, MAXNSPG)
+
+C     **************** SHIMA MODEL 2 *****************
+       DIMENSION  SSMAX(MAXNSPGLI), DSMAX(MAXNSPGLI)
+
+C     **************** SHIMA MODEL 3 *****************
+       DIMENSION CYC(MAXNSPGLI),  streslimax(maxnspgli)
+
+       
+       real Enor,ftnor 
+
+
+	   im= kind02(is)		!kind of steel bond spring IS
+	   fc=abs(stresm(1,1))     
+	   ft= stresm(2,1)
+!         fc=abs(FCELE(nbp(1,is))) 	!the compressive strength of concrete ele which is nearest to steel node IS
+!         ft=FTELE(nbp(1,is))		!the tensile strength of concrete ele which is nearest to steel node/steel bond point IS
+         
+         Enor=EELE(nbp(1,is))/eg(kind0(1))	!deteriorated E_con.ele/E_con.normal
+         ftnor=ft/ft0				!deteriorated ft_con.ele/ft0_con.tensile
+         
+         if(fc>FC0)then
+             fc=FC0
+         endif
+         if(ft>ft0)then
+             ft=ft0
+         endif
+         if(Enor>1.0d0)then
+             Enor=1.0d0
+         endif
+         if(ftnor>1.0d0)then
+             ftnor=1.0d0
+          endif
+         
+      ds= abs(slip(is))				!slip between steel and concrete (p.98) ?   S
+	preds= abs(preslip(is))		!slip between steel and concrete (p.48)      S at previous step
+ 	prestresli(is)=abs(prestresli(is))	!(p.48)  steel/concrete bond stress of node IS of previous step  t???
+   
+C     ********************* STRAIN *************************
+   
+        jt(1)=0
+	  n1=isteel			!number of steels bars and FRP
+       do 2226 jk=1,n1
+	 if(jk.eq.1)then
+	 jt(jk)=jt(jk)+ielst(jk)+1		!ielst: number of steel elements of steel bar jk. ielst+1=number of steel nodes
+       else
+	 jt(jk)=jt(jk-1)+ielst(jk)+1	!accumulated steel nodes at each bar
+      end if
+
+        if(is.eq.1)then			!first steel node/bond point for steel/frp??????
+	  strarf1(1)=(strarf(1))		!reinforcement strain (p.95)?? from RBSM
+	  stmr=ABS(stmr1(1))		!reinforcement yield strain (p.26) ep_y= fy/Es
+	  goto 2227
+	  elseif(is.eq.jt(jk).or.is.eq.jt(jk)+1)then   !”Is”: st.element or st.bond spring?
+	  jj3=jj3+1
+	  strarf1(is)=(strarf(is-jj3))	!strain at node is equal strain of element containing node
+         stmr=ABS(stmr1(is-jj3))
+	  goto 2227        
+	  end if
+2226    continue
+
+          strarf1(is)=((strarf(is-1-jj3)+strarf(is-jj3))/2.0) !strain of middle nodes of two steel elements 
+         stmr=ABS((stmr1(is-1-jj3)+stmr1(is-jj3))/2.0)
+2227     continue
+C     *******************************************************
+      
+	if(kind02(is).eq.2)then 		!bond stress for tensile steel
+	CALL TSTRESSLI(IS, JJ3, FC, FT, ds, PREDS, STMR)
+
+	elseif(kind02(is).eq.3)then		! bond stress for stirrup
+	CALL CSTRESSLI(IS, JJ3, FC, FT, ds, PREDS, STMR)    
+
+	elseif(kind02(is).eq.5)then		! bond stress for compressive steel
+	CALL CSTRESSLI(IS, JJ3, FC, FT, ds, PREDS, STMR)      
+
+	elseif(kind02(is).eq.4)then		! bond stress for FRP sheet
+	CALL FSTRESSLI(IS, JJ3, FC, FT, ds, PREDS, STMR)
+	end if
+	
+8888  CONTINUE
+c     ***************************************************************************
+	if(slip(is).gt.0.0) then
+	stresli(is)=+stresli(is)
+	else
+	stresli(is)=-stresli(is)
+	end if
+      
+      return
+	end
+
+
+C     ******* TENSILE_STEEL_STRESSLI SUBROUTINE **************                
+      SUBROUTINE TSTRESSLI (IS, JJ3, FC, FT, ds, PREDS, STMR)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1
+	  USE DEM_CON
+	  USE DEM_STE
+        USE DEM_BON
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      
+      DIMENSION  JT(MAXISTEEL), 
+     * SSLI(2, MAXNSPGLI), X3(MAXNSPGLI), Y3(MAXNSPGLI)
+
+C     ************ FOR DELFT BOND MODEL ********
+       DIMENSION SSLI1(2, MAXNSPGLI), SSLI2(2, MAXNSPGLI),
+     * SA1(MAXNSPGLI), SA2(MAXNSPGLI), SB1(MAXNSPGLI), SB2(MAXNSPGLI),
+     * SC1(MAXNSPGLI), SC2(MAXNSPGLI)
+
+
+C     **************** SHIMA MODEL 2 *****************
+       DIMENSION  SSMAX(MAXNSPGLI), DSMAX(MAXNSPGLI)
+
+C     **************** SHIMA MODEL 3 *****************
+       DIMENSION CYC(MAXNSPGLI),  streslimax(maxnspgli)
+      
+      
+      
+
+!	DIMENSION  JT(MAXISTEEL), 
+!     * SSLI(2, MAXNSPGLI), X3(MAXNSPGLI), Y3(MAXNSPGLI)
+
+C     **************** SHIMA MODEL 3 *****************
+!       DIMENSION CYC(MAXNSPGLI),  streslimax(maxnspgli)
+       
+       real Enor,ftnor 
+       im= kind02(is)
+       Enor=1
+       ftnor=1
+       IF (DSO1(IS).EQ.0.0)THEN	!So at maximum bond stress
+       IF(PREBDC(IS).EQ.0.0.AND.PREBDRS(IS).EQ.0.0)THEN !prebdc = bdc = 0,1,2,3,4
+          IF (ABS(strarf1(is)).GT.STMR)THEN   
+               DSO1(IS)=PREDS			!slip between steel and concrete at maximum bond stress	So
+	        DSO2(IS)=2.0* DSO1(IS)	!=f(dso1) slip when bond stress is 0		2So
+	TMAX3(IS)=PRESTRESLI(IS)	!Max bond stress between steel and concrete
+           END IF
+	ELSE IF(PREBDC(IS).GT.0.0.OR.PREBDRS(IS).GT.0.0)THEN !cracks and slip reverse happens
+              DSO1(IS)=PREDS
+	        DSO2(IS)=2.0* DSO1(IS)
+	TMAX3(IS)=PRESTRESLI(IS)
+            END IF
+	       END IF
+
+c     ***************  loading, re-loading and un-loading pass ****************
+        IF(SLIP(IS).Ge.0.0.AND.PRESLIP(IS).Ge.0.0)THEN
+	  if(ds.ge.preds)then		!S>=Sprestep
+	         go to 2228 !loading
+	  elseif(ds.lt.preds)then
+               go to 2229 !un-re-loading   !un-loading
+	     end if
+
+        else IF(SLIP(IS).Le.0.0.AND.PRESLIP(IS).Le.0.0)THEN
+	  if(ds.ge.preds)then
+	         go to 2228 !loading
+	  else if(ds.lt.preds)then
+               go to 2229 !un-re-loading   !un-loading
+	     end if
+			
+        else IF(PRESLIP(IS).GT.0.0.AND.SLIP(IS).LT.0.0)THEN   
+	           CYC(IS)= 1.0
+	         go to 2230
+
+        else IF(PRESLIP(IS).LT.0.0.AND.SLIP(IS).GT.0.0)THEN
+	           CYC(IS)= 1.0
+	         go to 2230
+            END IF
+
+2228  continue
+c     ***************  loading and re-loading pass ****************
+        if (jydli(is).ge.0.0)then	!loading
+	      go to 2230
+	  else if (jydli(is).lt.0.0)then	!re-loading
+		  go to 2231
+		  end if
+
+2230  continue
+c     *************************  loading  *************************
+         IF( PREBDC(IS).EQ.0.0.AND.PREBDRS(IS).EQ.0.0)THEN
+             if (ABS(strarf1(is)).le. stmr)then   
+        s=1000.0*ds/(2.0*dr(is))
+!       tu=fc*0.73*(log(1.0+5.0*s))**3.0
+!      ge=1.0/(1.0+10.0**5.0*ABS(strarf1(is)))
+       tu=fc*0.73d0*(Enor**0.56d0)*(log(1.0d0+5.0d0*s))**3.0d0
+       ge=1.0d0/(1.0d0+(ftnor**-1.3d0)*10.0d0**5.0d0*ABS(strarf1(is)))
+        stresli(is)=tu*ge
+	       jydli(is)=1
+
+         ELSEif (ABS(strarf1(is)).GT. stmr)then   
+C	STRESLI(IS)= 0.1*TMAX3(IS)/(DSO2(IS)-DSO1(IS))*(DSO2(IS)-DS)
+      s=1000.0*ds/(2.0*dr(is))
+!       tu=fc*0.73*(log(1.0+5.0*s))**3.0
+!      ge=1.0/(1.0+10.0**5.0*ABS(strarf1(is)))
+      
+       tu=fc*0.73d0*(Enor**0.56d0)*(log(1.0d0+5.0d0*s))**3.0d0
+       ge=1.0d0/(1.0d0+(ftnor**-1.3d0)*10.0d0**5.0d0*ABS(strarf1(is)))
+      stresli(is)=tu*ge
+	       jydli(is)=2
+              END IF
+
+       ELSEIF( PREBDC(IS).GT.0.0.OR.PREBDRS(IS).GT.0.0)THEN !deterioration and cracks happened
+           if (ABS(strarf1(is)).le. stmr)then		!pre-yielding stage
+          s=1000.0*ds/(2.0*dr(is))
+!       tu=fc*0.73*(log(1.0+5.0*s))**3.0
+!       ge=1.0/(1.0+10.0**5.0*ABS(strarf1(is)))
+      tu=fc*0.73d0*(Enor**0.56d0)*(log(1.0d0+5.0d0*s))**3.0d0
+      ge=1.0d0/(1.0d0+(ftnor**-1.3d0)*10.0d0**5.0d0*ABS(strarf1(is)))
+      stresli(is)=tu*ge
+              JYDLI(IS)=3
+          ELSEif (ABS(strarf1(is)).GT. stmr)then	!post-yielding stage
+	STRESLI(IS)= 0.1*TMAX3(IS)/(DSO2(IS)-DSO1(IS))*(DSO2(IS)-DS)	!DR.DEMlid (page 38)????????????????????
+           	       JYDLI(IS)=4           	            
+	                END IF
+                      END IF
+
+		if (stresli(is).lt.0.0)then
+	  	stresli(is)=0.0
+	  	end if
+
+           goto 5555
+2229  continue
+c     ************    unloading pass **************
+           if (jydli(is).gt.0.0)then
+	           ssli(1,is)=preds
+	           ssli(2,is)=prestresli(is)
+	            end if
+
+         IF( PREBDC(IS).EQ.0.0.AND.PREBDRS(IS).EQ.0.0)THEN
+          if (ABS(strarf1(is)).lt. stmr)then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-1
+        elseif (ABS(strarf1(is)).ge.stmr)then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+		 jydli(is)=-2
+         end if
+
+       ELSEIF( PREBDC(IS).GT.0.0.OR.PREBDRS(IS).GT.0.0)THEN
+          if (ABS(strarf1(is)).lt. stmr)then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-3
+        elseif (ABS(strarf1(is)).ge.stmr)then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+		 jydli(is)=-4
+		 END IF
+           END IF
+
+		if (stresli(is).lt.0.0)then
+	  	stresli(is)=0.0
+	  	end if
+
+          goto 5555
+
+2231  continue
+c     ***************  re-loading pass ****************   
+
+
+         IF( PREBDC(IS).EQ.0.0.AND.PREBDRS(IS).EQ.0.0)THEN !prebdrs=bdrs=1,2,3,4,5
+
+         if (ABS(strarf1(is)).le. stmr)then		!pre-yielding stage
+          if(ds.le.ssli(1,is))then		!as in unloading stage
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-5
+
+          elseif(ds.gt.ssli(1,is))then	!as in loading stage
+        s=1000.0*ds/(2.0*dr(is))
+!        tu=fc*0.73*(log(1.0+5.0*s))**3.0
+!       ge=1.0/(1.0+10.0**5.0*ABS(strarf1(is)))
+       tu=fc*0.73d0*(Enor**0.56d0)*(log(1.0d0+5.0d0*s))**3.0d0
+       ge=1.0d0/(1.0d0+(ftnor**-1.3d0)*10.0d0**5.0d0*ABS(strarf1(is)))
+        stresli(is)=tu*ge
+	       jydli(is)=5
+	       END IF
+
+        elseif (ABS(strarf1(is)).gt.stmr)then	!post-yielding stage
+          if(ds.le.ssli(1,is))then		!as in unloading stage
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-6
+
+          elseif(ds.gt.ssli(1,is))then	!as in loading stage
+C	STRESLI(IS)= 0.1*TMAX3(IS)/(DSO2(IS)-DSO1(IS))*(DSO2(IS)-DS)
+        s=1000.0*ds/(2.0*dr(is))
+!        tu=fc*0.73*(log(1.0+5.0*s))**3.0
+!       ge=1.0/(1.0+10.0**5.0*ABS(strarf1(is)))
+       tu=fc*0.73d0*(Enor**0.56d0)*(log(1.0d0+5.0d0*s))**3.0d0
+       ge=1.0d0/(1.0d0+(ftnor**-1.3d0)*10.0d0**5.0d0*ABS(strarf1(is)))
+        stresli(is)=tu*ge
+	       jydli(is)=6
+               end if
+         end if
+
+       ELSEIF( PREBDC(IS).GT.0.0.OR.PREBDRS(IS).GT.0.0)THEN
+         if (ABS(strarf1(is)).le. stmr)then		!pre-yielding stage
+          if(ds.le.ssli(1,is))then		!as in unloading stage
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-7
+
+          elseif(ds.gt.ssli(1,is))then	!as in loading stage
+        s=1000.0*ds/(2.0*dr(is))
+!        tu=fc*0.73*(log(1.0+5.0*s))**3.0
+!       ge=1.0/(1.0+10.0**5.0*ABS(strarf1(is)))
+       tu=fc*0.73d0*(Enor**0.56d0)*(log(1.0d0+5.0d0*s))**3.0d0
+       ge=1.0d0/(1.0d0+(ftnor**-1.3d0)*10.0d0**5.0d0*ABS(strarf1(is)))
+        stresli(is)=tu*ge
+	       jydli(is)=7
+	       END IF
+
+        elseif (ABS(strarf1(is)).gt.stmr)then	!post-yielding stage
+          if(ds.le.ssli(1,is))then		!as in unloading stage
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-8
+
+          elseif(ds.gt.ssli(1,is))then	!as in loading stage
+	STRESLI(IS)= 0.1*TMAX3(IS)/(DSO2(IS)-DSO1(IS))*(DSO2(IS)-DS)
+	       jydli(is)=8
+               end if
+               
+               END IF
+
+	          END IF
+
+		if (stresli(is).lt.0.0)then
+	  	stresli(is)=0.0
+	  	end if
+
+           goto 5555
+
+5555  continue
+
+C     *******************  PROPOSED MODEL DEMLID AND SATO *****************
+                   
+
+                XLB1=2.0*2.0*DR(Is)	!2 steel bars -> 2D = 2x2xDR(is)
+                XLB2=0.5*XLB1		!= 2.0*DR(Is)
+                XLB3=DR(Is)
+                RL=0.0
+          DO 5551 ISS=1,NSPG  
+          IF((abs(WG(1,ISS))).GT.(75.0))THEN	!WG(,) page 170 = f(w) page 104, w(1,is)= (stra(1,is)-stm2)*xhh		crack width or length of crack in X direction?????????
+
+            NM1= NSP(1,ISS)		!first con.ele of concrete spring ISS
+	NM2= NSP(2,ISS)		!second con.ele of concrete spring
+
+           XNM1= XYG(1,NM1)		!X_average of first con.ele of concrete spring
+           YNM1= XYG(2,NM1)		!Y_average of first con.ele of concrete spring
+           XNM2= XYG(1,NM2)		!X_average of second con.ele of concrete spring
+           YNM2= XYG(2,NM2)		!Y_average of second con.ele of concrete spring
+	     
+		 XMM= (XNM1+XNM2)/2.0	!X_midpoint
+	     YMM= (YNM1+YNM2)/2.0		!Y_midpoint
+
+	   XLL=ABS(XMM-COD(1,NLIN(IS))) 	!X_mid-X_bondpoint of steel spring IS
+	   YLL=ABS(YMM-COD(2,NLIN(IS)))		!Y_mid-Y_bondpoint of steel spring IS
+             IF (YLL.gt.20.0) GO TO 5551		!where is 20 from_assumed
+	   IF(RL.EQ.0.0)THEN
+            RL=XLL
+	     ELSE
+	    IF(XLL.LT.RL)THEN	!record the smallest X_distance between midpoint of two concrete elements of spring XLL and bond point of current steel bond spring????? IS into RL
+	       RL=XLL
+	       END IF
+             END IF
+	      END IF
+5551  CONTINUE
+
+
+	  IF(RL.EQ.0.0) GO TO 5552
+	  IF(RL.GE.XLB1) GO TO 5552
+
+        IF (PREBDRS(IS).EQ.0.0)THEN		!no slip reverses
+       STRESLI(IS)=STRESLI(IS)*(RL/XLB1)		!bond deterioration
+               BDC(IS)=1.0				!crack and bond deterioration occur
+        ELSEIF (PREBDRS(IS).GT.0.0)THEN		!slip reverses
+          STRESLI(IS)=STRESLI(IS)*(RL/XLB1)*0.50
+               BDC(IS)=2.0
+          END IF
+
+5552  CONTINUE
+
+
+	IF (CYC(IS).EQ.1.0.and.ABS(strarf1(is)).ge.(0.75*stmr))THEN !why must it be 0.75????
+          IF (PREBDC(IS).EQ.0.0)THEN	!No bond deterioration
+	IF (BDC(IS).EQ.0.0)THEN		!No bond deterioration
+          STRESLI(IS)=STRESLI(IS)*0.50	!slip reverses
+            BDRS(IS)=1.0
+	ELSEIF (BDC(IS).GT.0.0)THEN	!bond deterioration occurs and slip reverses
+          STRESLI(IS)=STRESLI(IS)*(RL/XLB1)*0.50
+               BDRS(IS)=2.0
+       END IF    
+			      
+          ELSEIF (PREBDC(IS).GT.0.0)THEN
+          STRESLI(IS)=STRESLI(IS)*(RL/XLB1)*0.50
+               BDRS(IS)=3.0
+	          END IF
+      END IF
+      go to 2888
+      
+C     ********************     DELFT BOND MODEL    ******************
+          FAI= 0.1*FC
+	COTALFA= 1.0
+           RS= DR(Is)
+           VS= EP(IM)
+	     VC= EP(1)
+C     ************* SECOND PROCESS DATA ** FROM RADIAL STRAIN TO RADIAL STRESS ************ 
+
+       RADSTRA11 =0.000
+	 RADSTRES11=0.0
+
+       RADSTRA22 =8.32355E-05       !8.32355E-05     !8.32355E-05
+	 RADSTRES22=1.022084885       !0.917202024     !1.022084885   
+
+       RADSTRA33 =0.001139359       !0.001139359     !0.000647995
+	 RADSTRES33=6.205027988       !6.205027988     !9.502965212
+
+       RADSTRA44 =0.001935582       !0.001935582     !0.001977917
+	 RADSTRES44=1.77731329        !1.77731329      !1.70247642
+
+       RADSTRA55 =0.00386167
+	 RADSTRES55=1.318925306    
+	 
+	 RADSTRA10=0.000718495
+	  
+100   CONTINUE
+C     ************* Determination of the failure type ************ 
+      IF (FMT.EQ.1)THEN
+         GO TO 101
+	ELSE IF (FMT.EQ.2)THEN
+      	GO TO 102
+	END IF
+
+101   CONTINUE
+C     ***************  SPLITTING BOND FAILURE MODE   *************************
+c     ***************  loading, re-loading and un-loading pass ****************
+	  if(ds.ge.preds)then
+	         go to 103
+	  elseif(ds.lt.preds)then
+               go to 104
+	     end if
+
+103   continue
+c     ***************  loading and re-loading pass ****************
+         if (jydli1(is).ge.0.0)then
+	      go to 105
+	  else if (jydli1(is).lt.0.0)then
+		  go to 106
+		  end if
+
+105   continue
+c     ***********************  loading pass ***************************
+C     ************* FIRST PROCESS  ** FROM SLIP TO RADIAL STRAIN ************ 
+	RADSTRA(is)=(DS*TAN(FAI*22.0/7.0/180.0))/RS
+       jydli1(is)=1
+C     ************* SECOND PROCESS DATA ** FROM RADIAL STRAIN TO RADIAL STRESS **********
+        if(radstra(is).ge.radstra11.and.radstra(is).le.radstra22)then
+	radstres(is)=radstres11+((radstres22-radstres11)/
+     *            (radstra22-radstra11))*(radstra(is)-radstra11)
+	      jydli2(is)=1
+
+	elseif(radstra(is).gt.radstra22.and.radstra(is).lt.radstra33)then
+C       y = -3E+06x2 + 8575.3x + 0.3291
+      radstres(is)=-3*10**6*(radstra(is))**2+8575.3*radstra(is)+0.3291      
+		jydli2(is)=2
+
+	elseif(radstra(is).ge.radstra33.and.radstra(is).le.radstra44)then
+	radstres(is)=radstres33-((radstres33-radstres44)/
+     *             (radstra44-radstra33))*(radstra(is)-radstres33)
+         jydli2(is)=3
+
+	elseif(radstra(is).gt.radstra44)then
+	radstres(is)= radstres44-((radstres44-radstres55)/
+     *              (radstra55-radstra44))*(radstra(is)-radstra44)
+	          jydli2(is)=4
+                      end if
+
+	if(radstres(is).lt.0.0)then
+	    radstres(is)=0.0
+	       end if
+
+	go to 300
+
+104   continue
+c     ***********************  un-loading pass ***************************
+C     ************* FIRST PROCESS  ** FROM SLIP TO RADIAL STRAIN ************ 
+            IF(JYDLI1(is).GT.0.0)THEN
+	   ssli1(1,is)=preds
+	   ssli1(2,is)=preradstra(is)
+	   ssli2(1,is)=preradstra(is)
+	   ssli2(2,is)=preradstres(is)
+	          end if
+
+c      radstra(is)=preradstra(is)-(preradstra(is)/preds)*(preds-ds)
+       radstra(is)=preradstra(is)-(ssli1(2,is)/ssli1(1,is))*(preds-ds)
+        jydli1(is)=-1
+         
+          if(ssli2(1,is).ge.radstra11.and.ssli2(1,is).le.radstra22)then
+	     jydli2(is)=-1
+c	radstres(is)=preradstres(is)-(preradstres(is)/preradstra(is))*
+c     *               (preradstra(is)-radstra(is))
+	radstres(is)=preradstres(is)-(ssli2(2,is)/ssli2(1,is))*
+     *               (preradstra(is)-radstra(is))
+c	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+
+
+       elseif(ssli2(1,is).gt.radstra22.and.ssli2(1,is).lt.radstra33)then
+	     jydli2(is)=-2
+c	radstres(is)=preradstres(is)-(preradstres(is)/preradstra(is))*
+c     *               (preradstra(is)-radstra(is))
+	radstres(is)=preradstres(is)-(ssli2(2,is)/ssli2(1,is))*
+     *               (preradstra(is)-radstra(is))
+c	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+
+       elseif(ssli2(1,is).ge.radstra33.and.ssli2(1,is).le.radstra44)then
+	     jydli2(is)=-3
+c	radstres(is)=preradstres(is)-(preradstres(is)/preradstra(is))*
+c     *               (preradstra(is)-radstra(is))
+	radstres(is)=preradstres(is)-(ssli2(2,is)/ssli2(1,is))*
+     *               (preradstra(is)-radstra(is))
+c	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+
+          elseif(ssli2(1,is).gt.radstra44)then
+	     jydli2(is)=-4
+c	radstres(is)=preradstres(is)-(preradstres(is)/preradstra(is))*
+c     *               (preradstra(is)-radstra(is))
+	radstres(is)=preradstres(is)-(ssli2(2,is)/ssli2(1,is))*
+     *               (preradstra(is)-radstra(is))
+c 	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+           end if
+
+	      if(radstres(is).lt.0.0)then
+	         radstres(is)=0.0
+	              end if
+              	go to 300
+
+106   continue
+c     ***********************  re-loading pass ***************************
+C     ************* FIRST PROCESS  ** FROM SLIP TO RADIAL STRAIN ************ 
+           if(ds.le.ssli1(1,is))then
+	       jydli1(is)=-2
+c       radstra(is)=preradstra(is)+(preradstra(is)/preds)*(ds-preds)
+       radstra(is)=preradstra(is)+(ssli1(2,is)/ssli1(1,is))*(ds-preds)
+
+           elseif(ds.gt.ssli1(1,is))then
+	    RADSTRA(is)=(DS*TAN(FAI*22/7/180))/RS
+                 jydli1(is)=1
+                  end if
+C     ************* SECOND PROCESS ** FROM RADIAL STRAIN TO RADIAL STRESS ************ 
+       if(ssli2(1,is).ge.radstra11.and.ssli2(1,is).le.radstra22)then
+	if(radstra(is).lt.ssli2(1,is))then
+	radstres(is)=preradstres(is)+(ssli2(2,is)/ssli2(1,is))*
+     *               (radstra(is)-preradstra(is))
+c	radstres(is)=preradstres(is)+(preradstres(is)/preradstra(is))*
+c     *               (radstra(is)-preradstra(is))
+c	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+      jydli2(is)=-5
+	else if(radstra(is).ge.ssli2(1,is))then
+	radstres(is)=radstres11+((radstres22-radstres11)/
+     *            (radstra22-radstra11))*(radstra(is)-radstra11)
+	      jydli2(is)=1
+         end if 
+
+       elseif(ssli2(1,is).gt.radstra22.and.ssli2(1,is).lt.radstra33)then
+	if(radstra(is).lt.ssli2(1,is))then
+	radstres(is)=preradstres(is)+(ssli2(2,is)/ssli2(1,is))*
+     *               (radstra(is)-preradstra(is))
+c	radstres(is)=preradstres(is)+(preradstres(is)/preradstra(is))*
+c     *               (radstra(is)-preradstra(is))
+c 	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+      jydli2(is)=-6
+	else if(radstra(is).ge.ssli2(1,is))then
+      radstres(is)=-3*10**6*(radstra(is))**2+8575.3*radstra(is)+0.3291      
+	      jydli2(is)=2
+         end if 
+
+       elseif(ssli2(1,is).ge.radstra22.and.ssli2(1,is).le.radstra33)then
+	if(radstra(is).lt.ssli2(1,is))then
+	radstres(is)=preradstres(is)+(ssli2(2,is)/ssli2(1,is))*
+     *               (radstra(is)-preradstra(is))
+c	radstres(is)=preradstres(is)+(preradstres(is)/preradstra(is))*
+c     *               (radstra(is)-preradstra(is))
+c 	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+      jydli2(is)=-7
+	else if(radstra(is).ge.ssli2(1,is))then
+	radstres(is)=radstres33-((radstres33-radstres44)/
+     *             (radstra44-radstra33))*(radstra(is)-radstres33)
+         jydli2(is)=3
+         end if 
+
+       elseif(ssli2(1,is).gt.radstra44)then
+	if(radstra(is).lt.ssli2(1,is))then
+	radstres(is)=preradstres(is)+(ssli2(2,is)/ssli2(1,is))*
+     *               (radstra(is)-preradstra(is))
+c	radstres(is)=preradstres(is)+(preradstres(is)/preradstra(is))*
+c     *               (radstra(is)-preradstra(is))
+c 	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+      jydli2(is)=-8
+	else if(radstra(is).ge.ssli2(1,is))then
+	radstres(is)= radstres44-((radstres44-radstres55)/
+     *              (radstra55-radstra44))*(radstra(is)-radstra44)
+	          jydli2(is)=4
+         end if 
+            end if 
+         	go to 300
+
+
+102   CONTINUE
+C     ***************  PULL OUT BOND FAILURE MODE   *************************
+      jt(1)=0
+	  n1=isteel
+      do 1023 jk=1,n1
+	 if(jk.eq.1)then
+	 jt(jk)=jt(jk)+ielst(jk)+1
+	 else
+	 jt(jk)=jt(jk-1)+ielst(jk)+1
+       end if
+
+ 	if(is.eq.1)then
+	x3(1)=(cod(1,nlin(1))+cod(1,nlin(2)))/2
+	y3(1)=(cod(2,nlin(1))+cod(2,nlin(2)))/2	
+	xr34=x3(1)-cod(1,nlin(1))
+      yr34=y3(1)-cod(2,nlin(1))
+	  strarf1(1)=(strarf(1))
+	goto 1024
+
+      elseif(is.eq.nspgli)then
+	jj3=jj3+1
+	x3(nspgli-jj3)=(cod(1,nlin(nspgli))+cod(1,nlin(nspgli-1)))/2
+	y3(nspgli-jj3)=(cod(2,nlin(nspgli))+cod(2,nlin(nspgli-1)))/2	
+	xr34=cod(1,nlin(nspgli))-x3(nspgli-jj3)
+      yr34=cod(2,nlin(nspgli))-y3(nspgli-jj3)
+	  strarf1(is)=(strarf(is-jj3))
+	goto 1024
+
+
+      elseif(is.eq.jt(jk))then
+	jj3=jj3+1
+	x3(is-jj3)= (cod(1,nlin(is))+cod(1,nlin(is-1)))/2
+	y3(is-jj3)= (cod(2,nlin(is))+cod(2,nlin(is-1)))/2
+      xr34=cod(1,nlin(is))-x3(is-jj3)
+      yr34=cod(2,nlin(is))-y3(is-jj3)
+	  strarf1(is)=(strarf(is-jj3))
+	goto 1024
+
+	elseif(is.eq.jt(jk)+1)then
+	x3(is-jj3)=(cod(1,nlin(is))+cod(1,nlin(is+1)))/2
+	y3(is-jj3)=(cod(2,nlin(is))+cod(2,nlin(is+1)))/2
+      xr34=x3(is-jj3)-cod(1,nlin(is))
+      yr34=y3(is-jj3)-cod(2,nlin(is))
+	  strarf1(is)=(Strarf(is-jj3))
+	goto 1024
+      end if
+
+1023   continue
+	x3(is-jj3)=(cod(1,nlin(is))+cod(1,nlin(is+1)))/2
+	y3(is-jj3)=(cod(2,nlin(is))+cod(2,nlin(is+1)))/2      
+      xr34=x3(is-jj3)-x3(is-jj3-1)
+	yr34=y3(is-jj3)-y3(is-jj3-1)
+        strarf1(is)=((strarf(is-1-jj3)+strarf(is-jj3))/2.0)
+	goto 1024
+
+1024    continue
+               SLL=(XR34**2+YR34**2)**0.5
+
+               SA(1,is)= SLL*VS*ABS(strarf1(is))/TAN(60.0*(22/7)/180.0)
+	         SA(2,is)= 0.0
+
+	      SB(1,is)= SA(1,is)+2*RADSTRA10/TAN(FAI*(22/7)/180)  
+         SB(2,is)= 0.5*RADSTRA10*EXP(-30*ABS(strarf1(is)))+0.5*RADSTRA10
+		   
+	 SC(1,is)= ((0.33*DR(Is))-(2.1*2*RADSTRA10/TAN(FAI*(22/7)/180)))*
+     *  EXP(-100*ABS(strarf1(is)))+(2.1*2*RADSTRA10/TAN(FAI*(22/7)/180))   
+       SC(2,is)= 0.5*RADSTRA10*EXP(-8.5*ABS(strarf1(is)))
+
+
+c     ***************  loading, re-loading and un-loading pass ****************
+	  if(ds.ge.preds)then
+	         go to 107
+	  elseif(ds.lt.preds)then
+               go to 108
+	     end if
+
+107   continue
+c     ***************  loading and re-loading pass ****************
+         if (jydli1(is).ge.0.0)then
+	      go to 109
+	  else if (jydli1(is).lt.0.0)then
+		  go to 110
+		  end if
+109   continue
+c     ***********************  loading pass ***************************
+C     ************* FIRST PROCESS  ** FROM SLIP TO RADIAL STRAIN ************ 
+        if(ds.le.sa(1,is))then
+	radstra(is)=0.0
+	jydli1(is)=1
+
+	else if(ds.gt.sa(1,is).and.ds.le.sb(1,is))then
+	radstra(is)=sa(2,is)+((sb(2,is)-sa(2,is))/(sb(1,is)-sa(1,is)))*
+     *               (ds-sa(1,is))
+	       jydli1(is)=2
+	
+	else if(ds.gt.sb(1,is).and.ds.lt.sc(1,is))then
+	radstra(is)=sb(2,is)-((sb(2,is)-sc(2,is))/(sc(1,is)-sb(1,is)))*
+     *               (ds-sb(1,is))
+	         jydli1(is)=3
+	
+	elseif(ds.ge.sc(1,is))then
+	radstra(is)=sc(2,is)
+	           jydli1(is)=4
+	          end if
+C     ************* SECOND PROCESS DATA ** FROM RADIAL STRAIN TO RADIAL STRESS **********
+        if(radstra(is).ge.radstra11.and.radstra(is).le.radstra22)then
+	radstres(is)=radstres11+((radstres22-radstres11)/
+     *            (radstra22-radstra11))*(radstra(is)-radstra11)
+	      jydli2(is)=1
+
+	elseif(radstra(is).gt.radstra22.and.radstra(is).lt.radstra33)then
+C       y = -3E+06x2 + 8575.3x + 0.3291
+      radstres(is)=-3*10**6*(radstra(is))**2+8575.3*radstra(is)+0.3291      
+		jydli2(is)=2
+
+	elseif(radstra(is).ge.radstra33.and.radstra(is).le.radstra44)then
+	radstres(is)=radstres33-((radstres33-radstres44)/
+     *             (radstra44-radstra33))*(radstra(is)-radstres33)
+         jydli2(is)=3
+
+	elseif(radstra(is).gt.radstra44)then
+	radstres(is)= radstres44-((radstres44-radstres55)/
+     *              (radstra55-radstra44))*(radstra(is)-radstra44)
+	          jydli2(is)=4
+                      end if
+
+	if(radstres(is).lt.0.0)then
+	    radstres(is)=0.0
+	       end if
+
+	go to 300
+
+108   continue
+c     ***********************  un-loading pass ***************************
+C     ************* FIRST PROCESS  ** FROM SLIP TO RADIAL STRAIN ************ 
+            IF(JYDLI1(is).GT.0.0)THEN
+	   ssli1(1,is) = preds
+	   ssli1(2,is) = preradstra(is)
+	   ssli2(1,is) = preradstra(is)
+	   ssli2(2,is) = preradstres(is)
+	       sa1(is) = presa(1,is)
+	       sa2(is) = presa(2,is)
+	       sb1(is) = presb(1,is)
+	       sb2(is) = presb(2,is)
+	       sc1(is) = presc(1,is)
+	       sc2(is) = presc(2,is)
+	          end if
+          if(ssli1(1,is).le.sa1(is))then
+	radstra(is)=0.0
+	jydli1(is)=-1
+
+	else if (ssli1(1,is).gt.sa1(is).and.ssli1(1,is).le.sb1(is))then
+      radstra(is)=preradstra(is)-((ssli1(2,is)-sa2(is))/
+     *               (ssli1(1,is)-sa1(is)))*(preds-ds)
+        jydli1(is)=-2
+
+        elseif(ssli1(1,is).gt.sb1(is).and.ssli1(1,is).lt.sc1(is))then
+      radstra(is)=preradstra(is)-((ssli1(2,is)-sa2(is))/
+     *               (ssli1(1,is)-sa1(is)))*(preds-ds)
+        jydli1(is)=-3
+       elseif(ssli1(1,is).ge.sc1(is))then
+      radstra(is)=preradstra(is)-((ssli1(2,is)-sa2(is))/
+     *               (ssli1(1,is)-sa1(is)))*(preds-ds)
+        jydli1(is)=-4
+           end if
+
+	     if(radstra(is).lt.0.0)then
+	         radstra(is)=0.0
+	              end if
+
+C     ************* SECOND PROCESS DATA ** FROM RADIAL STRAIN TO RADIAL STRESS **********
+          
+            if(ssli2(1,is).eq.radstra11)then
+	          radstres(is)=0.0
+	           jydli2(is)=-1
+
+		elseif(ssli2(1,is).gt.radstra11.and.ssli2(1,is).le.radstra22)then
+	     jydli2(is)=-1
+c	radstres(is)=preradstres(is)-(preradstres(is)/preradstra(is))*
+c     *               (preradstra(is)-radstra(is))
+	radstres(is)=preradstres(is)-(ssli2(2,is)/ssli2(1,is))*
+     *               (preradstra(is)-radstra(is))
+c	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+
+
+       elseif(ssli2(1,is).gt.radstra22.and.ssli2(1,is).lt.radstra33)then
+	     jydli2(is)=-2
+c	radstres(is)=preradstres(is)-(preradstres(is)/preradstra(is))*
+c     *               (preradstra(is)-radstra(is))
+	radstres(is)=preradstres(is)-(ssli2(2,is)/ssli2(1,is))*
+     *               (preradstra(is)-radstra(is))
+c	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+
+       elseif(ssli2(1,is).ge.radstra33.and.ssli2(1,is).le.radstra44)then
+	     jydli2(is)=-3
+c	radstres(is)=preradstres(is)-(preradstres(is)/preradstra(is))*
+c     *               (preradstra(is)-radstra(is))
+	radstres(is)=preradstres(is)-(ssli2(2,is)/ssli2(1,is))*
+     *               (preradstra(is)-radstra(is))
+c	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+
+          elseif(ssli2(1,is).gt.radstra44)then
+	     jydli2(is)=-4
+c	radstres(is)=preradstres(is)-(preradstres(is)/preradstra(is))*
+c     *               (preradstra(is)-radstra(is))
+	radstres(is)=preradstres(is)-(ssli2(2,is)/ssli2(1,is))*
+     *               (preradstra(is)-radstra(is))
+c 	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+           end if
+
+	      if(radstres(is).lt.0.0)then
+	         radstres(is)=0.0
+	              end if
+              	go to 300
+
+110   continue
+c     ***********************  re-loading pass ***************************
+C     ************* FIRST PROCESS  ** FROM SLIP TO RADIAL STRAIN ************ 
+        if(ssli1(1,is).le.sa1(is))then
+	      if(ds.le.ssli1(1,is))then
+	        radstra(is)=0.0
+	         jydli1(is)=-5
+	else if(ds.gt.ssli1(1,is))then
+	        radstra(is)=0.0
+	         jydli1(is)=1
+	            end if
+
+          elseif(ssli1(1,is).gt.sa1(is).and.ssli1(1,is).le.sb1(is))then
+	      if(ds.le.ssli1(1,is))then
+	   radstra(is)=preradstra(is)+((ssli1(2,is)-sa2(is))/
+     *                      (ssli1(1,is)-sa1(is)))*(ds-preds)
+	         jydli1(is)=-6
+	else if(ds.gt.ssli1(1,is))then
+	radstra(is)=sa(2,is)+((sb(2,is)-sa(2,is))/(sb(1,is)-sa(1,is)))*
+     *               (ds-sa(1,is))
+	       jydli1(is)=2
+	            end if
+       
+	elseif(ssli1(1,is).gt.sb1(is).and.ssli1(1,is).lt.sc1(is))then
+	      if(ds.le.ssli1(1,is))then
+	   radstra(is)=preradstra(is)+((ssli1(2,is)-sa2(is))/
+     *                      (ssli1(1,is)-sa1(is)))*(ds-preds)
+	         jydli1(is)=-7
+	else if(ds.gt.ssli1(1,is))then
+	radstra(is)=sb(2,is)-((sb(2,is)-sc(2,is))/(sc(1,is)-sb(1,is)))*
+     *               (ds-sb(1,is))
+	       jydli1(is)=3
+	            end if
+       
+	elseif(ssli1(1,is).ge.sc1(is))then
+	      if(ds.le.ssli1(1,is))then
+	   radstra(is)=preradstra(is)+((ssli1(2,is)-sa2(is))/
+     *                      (ssli1(1,is)-sa1(is)))*(ds-preds)
+	         jydli1(is)=-8
+	else if(ds.gt.ssli1(1,is))then
+	radstra(is)=sc(2,is)
+	       jydli1(is)=4
+	            end if
+
+          end if
+
+C     ************* SECOND PROCESS DATA ** FROM RADIAL STRAIN TO RADIAL STRESS **********
+        if(ssli2(1,is).eq.radstra11)then
+	radstres(is)=radstres11+((radstres22-radstres11)/
+     *            (radstra22-radstra11))*(radstra(is)-radstra11)
+	      jydli2(is)=1
+
+       elseif(ssli2(1,is).gt.radstra11.and.ssli2(1,is).le.radstra22)then
+	if(radstra(is).lt.ssli2(1,is))then
+	radstres(is)=preradstres(is)+(ssli2(2,is)/ssli2(1,is))*
+     *               (radstra(is)-preradstra(is))
+c	radstres(is)=preradstres(is)+(preradstres(is)/preradstra(is))*
+c     *               (radstra(is)-preradstra(is))
+c	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+      jydli2(is)=-5
+	else if(radstra(is).ge.ssli2(1,is))then
+	radstres(is)=radstres11+((radstres22-radstres11)/
+     *            (radstra22-radstra11))*(radstra(is)-radstra11)
+	      jydli2(is)=1
+         end if 
+
+       elseif(ssli2(1,is).gt.radstra22.and.ssli2(1,is).lt.radstra33)then
+	if(radstra(is).lt.ssli2(1,is))then
+	radstres(is)=preradstres(is)+(ssli2(2,is)/ssli2(1,is))*
+     *               (radstra(is)-preradstra(is))
+c	radstres(is)=preradstres(is)+(preradstres(is)/preradstra(is))*
+c     *               (radstra(is)-preradstra(is))
+c 	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+      jydli2(is)=-6
+	else if(radstra(is).ge.ssli2(1,is))then
+      radstres(is)=-3*10**6*(radstra(is))**2+8575.3*radstra(is)+0.3291      
+	      jydli2(is)=2
+         end if 
+
+       elseif(ssli2(1,is).ge.radstra22.and.ssli2(1,is).le.radstra33)then
+	if(radstra(is).lt.ssli2(1,is))then
+	radstres(is)=preradstres(is)+(ssli2(2,is)/ssli2(1,is))*
+     *               (radstra(is)-preradstra(is))
+c	radstres(is)=preradstres(is)+(preradstres(is)/preradstra(is))*
+c     *               (radstra(is)-preradstra(is))
+c 	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+      jydli2(is)=-7
+	else if(radstra(is).ge.ssli2(1,is))then
+	radstres(is)=radstres33-((radstres33-radstres44)/
+     *             (radstra44-radstra33))*(radstra(is)-radstres33)
+         jydli2(is)=3
+         end if 
+
+       elseif(ssli2(1,is).gt.radstra44)then
+	if(radstra(is).lt.ssli2(1,is))then
+	radstres(is)=preradstres(is)+(ssli2(2,is)/ssli2(1,is))*
+     *               (radstra(is)-preradstra(is))
+c	radstres(is)=preradstres(is)+(preradstres(is)/preradstra(is))*
+c     *               (radstra(is)-preradstra(is))
+c 	radstres(is)=ssli2(2,is)-(ssli2(2,is)/ssli2(1,is))*
+c     *               (ssli2(2,is)-radstra(is))
+      jydli2(is)=-8
+	else if(radstra(is).ge.ssli2(1,is))then
+	radstres(is)= radstres44-((radstres44-radstres55)/
+     *              (radstra55-radstra44))*(radstra(is)-radstra44)
+	          jydli2(is)=4
+         end if 
+            end if 
+         	go to 300
+
+300   CONTINUE
+C     ************* THIRD PROCESS ** FROM RADIAL STRESS TO BOND STRESS ************     
+	STRESLI(IS)=RADSTRES(is)*FT*COTALFA
+           GO TO 5555 
+2888       continue
+           
+      Return
+      End
+
+C     *********** COM_STIRRUP_STRESSLI SUBROUTINE ************                
+
+      SUBROUTINE CSTRESSLI (IS, JJ3,FC, FT, DS, PREDS, STMR)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1
+	  USE DEM_CON
+	  USE DEM_STE
+        USE DEM_BON
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+	DIMENSION  JT(MAXISTEEL), 
+     * SSLI(2, MAXNSPGLI), X3(MAXNSPGLI), Y3(MAXNSPGLI)
+
+C     **************** SHIMA MODEL 2 *****************
+       DIMENSION  SSMAX(MAXNSPGLI), DSMAX(MAXNSPGLI)
+
+C     **************** SHIMA MODEL 3 *****************
+       DIMENSION CYC(MAXNSPGLI),  streslimax(maxnspgli)
+       
+       real Enor,ftnor 
+       im= kind02(is)
+       Enor=1
+       ftnor=1
+3333  continue
+C     ****************     SHIMA  MODEL (ORIGINAL MODEL) (1)  ****************
+c     ***************  loading, re-loading and un-loading pass ****************
+	  if(ds.ge.preds)then		!slip increases in comparision to that in previous step
+	         go to 3338
+	  elseif(ds.lt.preds)then	!slip decreases
+               go to 3339
+	     end if
+
+3338  continue		! ds.ge.preds
+c     ***************  loading and re-loading pass ****************
+!jydli() is an index to indicate loading, unloading and reloading phase of each case
+        if (jydli(is).ge.0.0)then			!Loading 
+	      go to 3330
+	  else if (jydli(is).lt.0.0)then		!Re-loading
+		  go to 3331
+		  end if
+
+3330        continue		! jydli(is).ge.0.0
+c     *************************  loading  *************************
+        s=1000.0*ds/(2.0*dr(is))			!relative steel/concrete slip = 1000S/D
+!      tu=fc*0.73*(log(1.0+5.0*s))**3.0
+!     ge=1.0/(1.0+10.0**5.0*ABS(strarf1(is)))
+       tu=fc*0.73d0*(Enor**0.56d0)*(log(1.0d0+5.0d0*s))**3.0d0!Dr.DEMlid_p38????????
+       ge=1.0d0/(1.0d0+(ftnor**-1.3d0)*10.0d0**5.0d0*ABS(strarf1(is))) !Dr.DEMlid_p38
+        stresli(is)=tu*ge		!t=0.73fc.(ln(1+5s))^3/(1+e.10^5)_steel/concrete bond stress
+	       jydli(is)=1
+             go to 3888
+
+3339  continue		!ds.lt.preds
+c     ************    unloading pass **************
+           if (jydli(is).gt.0.0)then
+	           ssli(1,is)=preds		!slip S at the time when first crack occur
+           ssli(2,is)=prestresli(is)		! steel/concrete bond stress at the time when first crack occur
+	            end if
+	       jydli(is)=-1
+	stresli(is)=prestresli(is)-(ssli(2,is)/ssli(1,is))*(preds-ds)	!bond stress decreases
+
+		if (stresli(is).lt.0.0)then
+	  	stresli(is)=0.0
+	  	end if
+
+             go to 3888
+
+3331  continue	!jydli(is).lt.0.0
+c     ***************  re-loading pass ****************   
+           if(ds.le.ssli(1,is))then		!bond stress is calculated as that in  un-loading phase
+	       jydli(is)=-2
+	stresli(is)=prestresli(is)+(ssli(2,is)/ssli(1,is))*(ds-preds)	!bond stress decreases
+
+          elseif(ds.gt.ssli(1,is))then	!bond stress is calculated as that in loading phase
+	       jydli(is)=1
+        s=1000.0*ds/(2.0*dr(is))
+!        tu=fc*0.73*(log(1.0+5.0*s))**3.0
+!       ge=1.0/(1.0+10.0**5.0*ABS(strarf1(is)))
+        
+       tu=fc*0.73d0*(Enor**0.56d0)*(log(1.0d0+5.0d0*s))**3.0d0
+       ge=1.0d0/(1.0d0+(ftnor**-1.3d0)*10.0d0**5.0d0*ABS(strarf1(is)))
+        stresli(is)=tu*ge
+               end if
+
+		if (stresli(is).lt.0.0)then
+	  	stresli(is)=0.0
+	  	end if      
+3888  continue
+      return
+	end
+
+C     ************** FRP_STRESSLI SUBROUTINE *********************                
+
+      SUBROUTINE FSTRESSLI(IS, JJ3, FC, FT, DS, PREDS, STMR)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1
+	  USE DEM_CON
+	  USE DEM_STE
+        USE DEM_BON
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+      DIMENSION  JT(MAXISTEEL), 
+     * SSLI(2, MAXNSPGLI), X3(MAXNSPGLI), Y3(MAXNSPGLI)
+
+C     ************ DR./ SATO BOND MODEL FOR FRP ********
+	 DIMENSION MAXIS1(MAXNSPGLI), MAXIS2(MAXNSPGLI), 
+     *  MAXIS3(MAXNSPGLI)
+
+C     **************** SHIMA MODEL 3 *****************
+       DIMENSION CYC(MAXNSPGLI),  streslimax(maxnspgli)
+       
+       real Enor,ftnor 
+       im= kind02(is)
+       Enor=1
+       ftnor=1
+
+C     ****************    BOND MODELS FOR FRP    ****************
+
+C     *********** DR./ SATO BOND MODEL (simplified) DEMLID *********************
+       TF= DR(Is)		!diameter of steel node “IS” (in case of FRP, it will be thichness)
+	 Ef= EG(IM)  		!young modulus of kind IM
+C        ***************   (GO)   ****************
+           IF ((TF*EF/1000.0).LT.38.4)THEN
+	  GO=0.0936*(TF*EF)**0.417
+           ELSEIF ((TF*EF/1000.0).GT.38.4)THEN
+        GO=1+(255000.0/TF/EF)
+            END IF 
+C       ********  (ALFA)      *************
+         ALFA = log(1.0-(1.0/GO))
+	   
+C       ********  (BETA)       ************
+	   BETA=0.2665*(TF*EF)**0.083
+	   IF (BETA.LE.0.64)THEN 
+	   BETA=0.2665*(TF*EF)**0.083
+	   ELSEIF (BETA.GT.0.64)THEN 
+         BETA=0.64
+	    END IF
+		 
+C       *********    (DSO) MIN SLIP  ***************!Dr.DEMlid p41
+           IF ((TF*EF/1000.0).LT.38.4)THEN
+	  DSO= (0.8)*(10.0**(-12.0))*((TF*EF)**2.40)*(FC**0.2)+(0.021)
+           ELSEIF ((TF*EF/1000.0).GT.38.4)THEN
+        DSO= ((3100.0)*(FC**0.20)/(TF*EF))+0.034
+            END IF 
+           DS1=2.0*DSO
+
+C          ******    (TMAX) MAX BOND STRESS      ***********!Dr.DEMlid p41
+            TMAX=(9.10)*(FC**0.20)*(TF*EF)*(10.0**(-5.0))
+	  IF(TMAX.GT.(3.49*FC**0.2))THEN
+	        TMAX= 3.49*FC**0.2
+	   END IF 
+
+
+
+c     ***************  loading, re-loading and un-loading pass ****************
+        IF(SLIP(IS).GT.0.0.AND.PRESLIP(IS).Ge.0.0)THEN
+	  if(ds.ge.preds)then		!loading
+	         go to 4449
+	  elseif(ds.lt.preds)then	!unloading
+               go to 4450
+	     end if
+
+        else IF(SLIP(IS).LT.0.0.AND.PRESLIP(IS).Le.0.0)THEN
+	  if(ds.ge.preds)then
+	         go to 4449
+	  elseif(ds.lt.preds)then
+               go to 4450
+	     end if
+			
+        else IF(PRESLIP(IS).GT.0.0.AND.SLIP(IS).LT.0.0)THEN
+	           CYC(IS)= 1.0
+	      go to 4451
+
+
+        else IF(PRESLIP(IS).LT.0.0.AND.SLIP(IS).GT.0.0)THEN
+	           CYC(IS)= 1.0
+	      go to 4451
+            END IF
+
+
+4449  continue
+c     ***************  loading and re-loading pass ****************
+
+        if (jydli(is).ge.0.0)then		!loading
+	      go to 4451
+	  else if (jydli(is).lt.0.0)then	!re-loading
+		  go to 4452
+		  end if
+
+4451  continue
+c     *************************  loading  *************************
+         IF( PREBDC(IS).EQ.0.0.AND.PREBDRS(IS).EQ.0.0)THEN
+	   IF (DS.LE.DSO)THEN
+          DDO=1-EXP(ALFA*((DS/DSO)**(-BETA)))
+	  STRESLI(IS)=TMAX*GO*DDO*DS/DSO
+	      JYDLI(IS)=1
+
+         ELSE IF (DS .GT. DSO.AND.DS.LT.DS1)THEN	!Dr.DEMlid p41
+	STRESLI(IS)= TMAX*EXP(-10.0*(DS-DSO))
+	      JYDLI(IS)=2
+
+         ELSE IF (DS .GE. DS1)THEN
+            STRESLI(IS)=0.0
+	      JYDLI(IS)=3
+	  END IF
+
+         ELSEIF( PREBDC(IS).GT.0.0.OR.PREBDRS(IS).GT.0.0)THEN
+	   IF (DS.GT.DSO1(IS).AND.DS.LT.DSO2(IS))THEN
+	STRESLI(IS)= TMAX1(IS)*EXP(-10.0*(DS-DSO1(IS)))
+	      JYDLI(IS)=2
+         ELSE IF (DS .GE. DSO2(IS))THEN
+            STRESLI(IS)=0.0
+	      JYDLI(IS)=3
+           END IF
+
+
+	       END IF
+
+
+		if (stresli(is).lt.0.0)then
+	  	stresli(is)=0.0
+	  	end if
+
+            go to 6666
+
+            
+4450  continue
+c     ************    unloading pass **************
+           if (jydli(is).gt.0.0)then
+	           ssli(1,is)=preds
+	           ssli(2,is)=prestresli(is)
+	            end if
+
+         IF( PREBDC(IS).EQ.0.0.AND.PREBDRS(IS).EQ.0.0)THEN
+	   IF (DS.LE.DSO)THEN
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	      JYDLI(IS)=-1
+
+         ELSE IF (DS .GT. DSO.AND.DS.LT.DS1)THEN
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	      JYDLI(IS)=-2
+
+         ELSE IF (DS .GE. DS1)THEN
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	      JYDLI(IS)=-3
+	  END IF 
+
+
+         ELSEIF( PREBDC(IS).GT.0.0.OR.PREBDRS(IS).GT.0.0)THEN
+
+	   IF (DS.GT.DSO1(IS).AND.DS.LT.DSO2(IS))THEN
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	      JYDLI(IS)=-2
+         ELSE IF (DS .GE. DSO2(IS))THEN
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	      JYDLI(IS)=-3
+           END IF
+
+	       END IF
+
+		if (stresli(is).lt.0.0)then
+	  	stresli(is)=0.0
+	  	end if
+
+            go to 6666
+
+4452  continue
+c     ***************  re-loading pass **************** 
+         IF( PREBDC(IS).EQ.0.0.AND.PREBDRS(IS).EQ.0.0)THEN
+	   IF (DS.LE.DSO)THEN 
+           if(ds.le.ssli(1,is))then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-4
+          elseif(ds.gt.ssli(1,is))then
+          DDO=1-EXP(ALFA*((DS/DSO)**(-BETA)))
+	  STRESLI(IS)=TMAX*GO*DDO*DS/DSO
+c	  STRESLI(IS)=((148.0*DS)*(FC**0.20))/(1.0+1000.0*ABS(strarf1(is)))
+	      JYDLI(IS)=7
+               end if
+
+         ELSE IF (DS .GT. DSO.AND.DS.LT.DS1)THEN
+           if(ds.le.ssli(1,is))then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-5
+          elseif(ds.gt.ssli(1,is))then
+	STRESLI(IS)= TMAX*EXP(-10.0*(DS-DSO))
+	      JYDLI(IS)=5
+               end if
+
+         ELSE IF (DS .GE. DS1)THEN
+           if(ds.le.ssli(1,is))then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-6
+          elseif(ds.gt.ssli(1,is))then
+C	STRESLI(IS)= TMAX/4.0
+C	STRESLI(IS)= TMAX*EXP(-10.0*(DS-DSO))
+            STRESLI(IS)=0.0
+	      JYDLI(IS)=6
+               end if
+               end if
+
+         ELSEIF( PREBDC(IS).gt.0.0.OR.PREBDRS(IS).gt.0.0)THEN
+
+		   IF (DS.GT.DSO1(IS).AND.DS.LT.DSO2(IS))THEN
+           if(ds.le.ssli(1,is))then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-5
+          elseif(ds.gt.ssli(1,is))then
+	STRESLI(IS)= TMAX1(IS)*EXP(-10.0*(DS-DSO1(IS)))
+	      JYDLI(IS)=5
+               end if
+
+         ELSE IF (DS .GE. DSO2(IS))THEN
+           if(ds.le.ssli(1,is))then
+	stresli(is)=(ssli(2,is)/ssli(1,is))*(ds)
+	       jydli(is)=-6
+          elseif(ds.gt.ssli(1,is))then
+C	STRESLI(IS)= TMAX1(IS)/4.0
+C	STRESLI(IS)= TMAX1(IS)*EXP(-10.0*(DS-DSO1(IS)))
+            STRESLI(IS)=0.0	
+	      JYDLI(IS)=6
+               end if
+              END IF
+			 END IF
+
+		if (stresli(is).lt.0.0)then
+	  	stresli(is)=0.0
+	  	end if
+
+            go to 6666
+            
+
+c     ******************** variation of bond strength for Dr./ Sato model ***********************
+7777  continue 
+           is3=0
+
+      do 771 is1=1,nsli4
+	   is2=nsli1+is1
+       if(abs(slip(is2)).ge.dso)then
+	      is3=is3+1
+             maxis1(is3)=is2
+	end if
+771   continue
+
+       if(is3.eq.0) go to 4888
+
+
+       IF(IS3.GT.1)THEN
+      do 772 is4=1,(is3-1)
+         do 773 is5=(IS4+1),is3
+
+      if(abs(slip(maxis1(is4))).LT.abs(slip(maxis1(is5))))then
+	      TEMP= MAXIS1(IS4)
+	      MAXIS1(IS4)=MAXIS1(IS5)
+		  maxis1(is5)=TEMP
+	end if
+773   continue
+772   continue
+         END IF
+
+
+	     is8=1
+	maxis3(1)=maxis1(1)
+          is99=1
+777    continue
+          is6=is99
+	xmm=cod(1,nlin(maxis1(is6)))
+	ymm=cod(2,nlin(maxis1(is6)))
+
+         do 775 is7=is99+1,is3
+	xnn=cod(1,nlin(maxis1(is7)))
+	ynn=cod(2,nlin(maxis1(is7)))
+
+	xrr=abs(xmm-xnn)
+
+      if(xrr.GE.80.0)then
+	        is8=is8+1
+	      maxis3(is8)=maxis1(is7)
+	          is99=is7
+                GO TO 777
+	end if
+775   continue
+
+      xnn1=cod(1,nlin(maxis3(is8)))
+	xnn2=cod(1,nlin(maxis1(is3)))
+	xnn3=abs(xnn1-xnn2)
+       if(xnn3.gt.80.0) go to 777
+
+
+	xss=cod(1,nlin(is))
+	yss=cod(2,nlin(is))
+
+       NSS4=0
+
+      do 776 is9=1,is8
+	xrr=cod(1,nlin(maxis3(is9)))
+	yrr=cod(2,nlin(maxis3(is9)))
+
+      xzz=abs(xss-xrr)
+	yzz=abs(yss-yrr)
+
+      if(xzz.gt.0.0.and.xzz.lt.30.0)then
+	       NSS4=NSS4+1
+	IF(NSS4.GT.1) GO TO 776
+		tmax22=(0.5*tmax)*xzz/30.0
+       if(stresli(is).ge.(tmax-tmax22))then
+	stresli(is)=tmax-tmax22
+	    dso1(is)=ds
+		dso2(is)=10.0*dso1(is)
+	    TMAX1(IS)=(tmax-tmax22)
+	end if
+        else if (xzz.ge.30.0.and.xzz.le.80.0)then
+	        NSS4=NSS4+1
+	if(stresli(is).ge.(0.5*tmax))then
+	stresli(is)=0.5*tmax
+	    dso1(is)=ds
+		dso2(is)=10.0*dso1(is)
+	TMAX1(IS)=0.5*TMAX
+
+	end if
+	end if
+776   continue
+
+            go to 4888
+
+C     ********************** BOND DETERIOATION MODEL FOR RFP *************************                   
+6666  continue  
+C     *******************  PROPOSED MODEL DEMLID  *****************         
+                XLB11=30.0	!0.7Tmax, DR.DEMlid p44
+                XLB22=110.0
+                XLB33=DR(Is)
+                RL=0.0
+
+          DO  66633 ISS=1,NSPG  	!from 1 to number of bond springs for concrete
+           IF((abs(WG(1,ISS))).GT.(100.0))THEN	!crack width in X direction?????
+         XMM=(COD(1,ja(1,ISS))+COD(1,ja(2,ISS)))/2.0	!X_average of two nodes of spring ISS
+         YMM=(COD(2,ja(1,ISS))+COD(2,ja(2,ISS)))/2.0 
+            NM1= NSP(1,ISS)		!firts concrete element  of spring ISS
+	      NM2= NSP(2,ISS)		!second concrete element  of spring ISS
+
+           XNM1= XYG(1,NM1)		!X1_average of firts concrete element  of spring ISS
+           YNM1= XYG(2,NM1)		!Y1_average of firts concrete element  of spring ISS
+           XNM2= XYG(1,NM2)
+           YNM2= XYG(2,NM2)
+	     
+		   XMM= (XNM1+XNM2)/2.0	
+	     YMM= (YNM1+YNM2)/2.0
+
+	     XLL=ABS(XMM-COD(1,NLIN(IS)))	!X_mid – X_FRP bond point
+	     YLL=ABS(YMM-COD(2,NLIN(IS)))	!Y_mid – Y_FRP bond point
+
+             IF (YLL.gt.10.0) GO TO  66633		!?????????
+	   IF(RL.EQ.0.0)THEN
+            RL=XLL
+	     ELSE
+	    IF(XLL.LT.RL)THEN	!record the shortest distance from concrete elements of spring ISS to FRP bond point  IS
+	       RL=XLL
+	       END IF
+             END IF
+	      END IF
+66633  CONTINUE
+
+
+	  IF(RL.EQ.0.0) GO TO 66634
+	  IF(RL.GE.XLB22) GO TO 66634
+
+        IF (PREBDRS(IS).EQ.0.0)THEN	!does not require cyclic law
+	  IF (RL.LE.XLB11)THEN
+         ttmax=0.7*tmax*(RL/XLB11) 		!Dr.DEMlid page44, fig.3.13
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS)
+               BDC(IS)=1.0
+		          END IF
+
+        ELSEIF (RL.GT.XLB11.AND.RL.LE.XLB22)THEN
+         ttmax=0.70*tmax
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS)
+               BDC(IS)=2.0
+	          END IF
+	          END IF
+
+        ELSEIF (PREBDRS(IS).GT.0.0)THEN		! requires cyclic law
+	  IF (RL.LE.XLB11)THEN
+         ttmax=0.7*tmax*(RL/XLB11)*0.75		!Dr.DEMlid page 42
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS)
+               BDC(IS)=3.0
+		          END IF
+
+        ELSEIF (RL.GT.XLB11.AND.RL.LE.XLB22)THEN
+         ttmax=0.70*tmax*0.75
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS)
+               BDC(IS)=4.0
+	          END IF
+	          END IF
+	          END IF
+
+66634  CONTINUE
+
+ 
+	IF (CYC(IS).EQ.1.0.and.ABS(strarf1(is)).ge.(0.1*stmr))THEN	!slip reverses
+
+         IF (PREBDC(IS).EQ.0.0)THEN		!No crack
+	IF (BDC(IS).EQ.0.0)THEN		!No crack
+         ttmax=0.75*tmax
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS)
+               BDRS(IS)=1.0
+		          END IF
+     	ELSEIF (BDC(IS).GT.0.0)THEN	!crack
+	  IF (RL.LE.XLB11)THEN
+         ttmax=0.7*tmax*(RL/XLB11)*0.75
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS)
+               BDRS(IS)=2.0
+		          END IF
+        ELSEIF (RL.GT.XLB11.AND.RL.LE.XLB22)THEN
+         ttmax=0.70*tmax*0.75
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS)
+               BDRS(IS)=3.0
+	          END IF
+	          END IF
+		       END IF
+
+         ELSEIF (PREBDC(IS).GT.0.0)THEN	! crack
+	  IF (RL.LE.XLB11)THEN
+         ttmax=0.7*tmax*(RL/XLB11)*0.75
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS) 
+               BDRS(IS)=4.0
+      END IF
+        ELSEIF (RL.GT.XLB11.AND.RL.LE.XLB22)THEN
+         ttmax=0.70*tmax*0.75
+	if(stresli(is).gt.ttmax)then
+         STRESLI(IS)=ttmax
+	     DSO1(IS)=DS
+	   tmax1(is)=ttmax
+         DSO2(IS)=2.0*DSO1(IS)
+               BDRS(IS)=5.0
+	          END IF
+	          END IF
+                  END IF
+      END IF
+      
+4888  continue
+      
+      Return
+      End
+
+
+
+C     ************************ DEM_ACTU SUBROUTINE **************************** 
+
+	  SUBROUTINE DEM_ACTU (IS)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1, ONLY: COD, KIND0
+	  USE DEM_GEN2, ONLY: FA
+	  USE DEM_CON,  ONLY: NSP, XYG, GL, JA, TH, STRES
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+
+
+      x1=xyg(1,nsp(1,is))
+      y1=xyg(2,nsp(1,is))
+      x2=xyg(1,nsp(2,is))
+      y2=xyg(2,nsp(2,is))
+
+      x4=cod(1,ja(1,is))
+	y4=cod(2,ja(1,is))
+      x3=cod(1,ja(2,is))
+	y3=cod(2,ja(2,is))
+
+      x34=(x3-x4)
+	y34=(y3-y4)
+	x43=(x4-x3)
+	y43=(y4-y3)
+
+      al34=gl(is)
+
+       F11=-y34
+	 F12=-x34
+	 F21=-x43
+	 F22=-y34
+	 F31=-y34*((y3+y4)/2-y1)+x43*((x3+x4)/2-x1)
+	 F32=-x34*((y3+y4)/2-y1)+y34*((x3+x4)/2-x1)
+       F41=-F11
+	 F42=-F12
+	 F51=-F21
+	 F52=-F22
+	 F61=y34*((y3+y4)/2-y2)-x43*((x3+x4)/2-x2)
+	 F62=x34*((y3+y4)/2-y2)-y34*((x3+x4)/2-x2)
+      
+      im=kind0(nsp(1,is))
+	in=kind0(nsp(2,is))
+C       ####################  ORIGINAL ##################
+      ddfa1=stres(1,is)*th(im)*F11+stres(2,is)*th(im)*F12
+      ddfa2=stres(1,is)*th(im)*F21+stres(2,is)*th(im)*F22
+      ddfa3=-1*(stres(1,is)*th(im)*F31+stres(2,is)*th(im)*F32)
+      ddfa4=stres(1,is)*th(im)*F41+stres(2,is)*th(im)*F42
+      ddfa5=stres(1,is)*th(im)*F51+stres(2,is)*th(im)*F52
+	ddfa6=-1*(stres(1,is)*th(im)*F61+stres(2,is)*th(im)*F62)
+
+C      ##############################################################
+
+  
+      fa(nsp(1,is)*3-2)=fa(nsp(1,is)*3-2)+ddfa1
+      fa(nsp(1,is)*3-1)=fa(nsp(1,is)*3-1)+ddfa2
+      fa(nsp(1,is)*3)=fa(nsp(1,is)*3)+ddfa3
+      fa(nsp(2,is)*3-2)=fa(nsp(2,is)*3-2)+ddfa4
+      fa(nsp(2,is)*3-1)=fa(nsp(2,is)*3-1)+ddfa5
+      fa(nsp(2,is)*3)=fa(nsp(2,is)*3)+ddfa6
+
+
+      return
+	end
+
+C     ************************ DEM_ACTURF SUBROUTINE **************************** 
+
+	  SUBROUTINE DEM_ACTURF (IS)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1, ONLY: COD, NST, KIND01, AS, EG, RI,nos2,nos3,nos5 
+	  USE DEM_GEN2, ONLY: FA
+	  USE DEM_STE,  ONLY: SL, US, STRESRF, NCP
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      Integer s1, s2
+
+      s1=nst(1,is)
+	s2=nst(2,is)
+     
+      xr3=cod(1,s1)
+	yr3=cod(2,s1)
+      xr4=cod(1,s2)
+	yr4=cod(2,s2)
+
+      xr34=xr3-xr4
+	yr34=yr3-yr4
+	xr43=xr4-xr3
+	yr43=yr4-yr3
+
+      Fr11=(xr34)
+    	Fr21=(yr34)
+      Fr41=-Fr11
+	Fr51=-Fr21
+
+	sl(is)=(xr34*xr34+yr34*yr34)**0.5
+
+	im=kind01(is)
+          
+!            IF (IM.EQ.2)THEN
+!            NSO=nos2
+!            ELSEIF (IM.EQ.3)THEN
+!            NSO=nos3
+!            ELSEIF (IM.EQ.4)THEN
+!            NSO=1
+!            ELSE IF (IM.EQ.5)THEN
+!            NSO=nos5
+!            END IF
+            
+      ddfb1=stresrf(is)*As(is)*Fr11/sl(is)!*NSO
+      ddfb2=stresrf(is)*As(is)*Fr21/sl(is)!*NSO
+      ddfb3=((2.0*eg(im)*rI(is)/sl(is)*(2.0*us(1,is)+us(2,is))))!*NSO
+      ddfb4=stresrf(is)*As(is)*Fr41/sl(is)!*NSO
+      ddfb5=stresrf(is)*As(is)*Fr51/sl(is)!*NSO
+      ddfb6=((2.0*eg(im)*rI(is)/sl(is)*(2.0*us(2,is)+us(1,is))))!*NSO
+
+
+C        #########################################################
+
+      fa(ncp(1,is)*3-2)=fa(ncp(1,is)*3-2)+ddfb1   
+      fa(ncp(1,is)*3-1)=fa(ncp(1,is)*3-1)+ddfb2
+      fa(ncp(1,is)*3)=fa(ncp(1,is)*3)+ddfb3
+      fa(ncp(2,is)*3-2)=fa(ncp(2,is)*3-2)+ddfb4
+      fa(ncp(2,is)*3-1)=fa(ncp(2,is)*3-1)+ddfb5
+      fa(ncp(2,is)*3)=fa(ncp(2,is)*3)+ddfb6
+
+      return
+	end
+
+C     ************************ DEM_ACTULI SUBROUTINE **************************** 
+
+	  SUBROUTINE DEM_ACTULI (IS, JJ4)
+	    
+	  USE DEM_MMA
+	  USE DEM_GEN1, ONLY: ISTEEL, IELST, COD, NLIN, NSPGLI, KIND02, 
+     *                      DR, TH,nos2,nos3,nos5
+	  USE DEM_GEN2, ONLY: FA
+	  USE DEM_CON,  ONLY: XYG
+	  USE DEM_BON,  ONLY: NBP, STRESLI, UL, SL1, SLIP
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+        DIMENSION  JT(MAXISTEEL),
+     *            X3(MAXNSPGLI), Y3(MAXNSPGLI)
+
+                im=kind02(is)
+
+       
+      jt(1)=0
+	  n1=isteel
+      do 100 jk=1,n1
+	 if(jk.eq.1)then
+	 jt(jk)=jt(jk)+ielst(jk)+1
+	 else
+	 jt(jk)=jt(jk-1)+ielst(jk)+1
+       end if
+
+ 	if(is.eq.1)then
+	x3(1)=(cod(1,nlin(1))+cod(1,nlin(2)))/2
+	y3(1)=(cod(2,nlin(1))+cod(2,nlin(2)))/2	
+	xr34=x3(1)-cod(1,nlin(1))
+      yr34=y3(1)-cod(2,nlin(1))
+	goto 200
+
+      elseif(is.eq.nspgli)then
+	jj4=jj4+1
+	x3(nspgli-jj4)=(cod(1,nlin(nspgli))+cod(1,nlin(nspgli-1)))/2
+	y3(nspgli-JJ4)=(cod(2,nlin(nspgli))+cod(2,nlin(nspgli-1)))/2	
+	xr34=cod(1,nlin(nspgli))-x3(nspgli-JJ4)
+      yr34=cod(2,nlin(nspgli))-y3(nspgli-JJ4)
+	goto 200
+
+
+      elseif(is.eq.jt(jk))then
+	JJ4=JJ4+1
+	x3(is-JJ4)= (cod(1,nlin(is))+cod(1,nlin(is-1)))/2
+	y3(is-JJ4)= (cod(2,nlin(is))+cod(2,nlin(is-1)))/2
+      xr34=cod(1,nlin(is))-x3(is-JJ4)
+      yr34=cod(2,nlin(is))-y3(is-JJ4)
+	goto 200
+
+	elseif(is.eq.jt(jk)+1)then
+	x3(is-JJ4)=(cod(1,nlin(is))+cod(1,nlin(is+1)))/2
+	y3(is-JJ4)=(cod(2,nlin(is))+cod(2,nlin(is+1)))/2
+      xr34=x3(is-JJ4)-cod(1,nlin(is))
+      yr34=y3(is-JJ4)-cod(2,nlin(is))
+	goto 200   
+      end if
+
+100   continue
+	x3(is-JJ4)=(cod(1,nlin(is))+cod(1,nlin(is+1)))/2
+	y3(is-JJ4)=(cod(2,nlin(is))+cod(2,nlin(is+1)))/2      
+      xr34=x3(is-JJ4)-x3(is-JJ4-1)
+	yr34=y3(is-JJ4)-y3(is-JJ4-1)
+200	continue
+
+      x1=cod(1,nlin(is))-xyg(1,nbp(1,is))
+	y1=cod(2,nlin(is))-xyg(2,nbp(1,is))
+	
+      im=kind02(is)
+	if(kind02(is).eq.2.or.kind02(is).eq.3.or.kind02(is).eq.5)then
+      Fl11=3.14*2.0*dr(is)*abs(xr34)
+	Fl21=3.14*2.0*dr(is)*abs(yr34)
+	Fl41=Fl11
+	Fl51=Fl21
+      elseif(kind02(is).eq.4)then
+      Fl11=th(im)*abs(xr34)
+	Fl21=th(im)*abs(yr34)
+	Fl41=-Fl11
+	Fl51=-Fl21
+	end if
+
+
+c       ##########################TRY 3 ########################
+
+           IF (IM.EQ.2)THEN
+            NSO=nos2
+            ELSEIF (IM.EQ.3)THEN
+            NSO=nos3
+            ELSEIF (IM.EQ.4)THEN
+            NSO=1
+           ELSE IF (IM.EQ.5)THEN
+            NSO=nos5
+            END IF
+
+        if(kind02(is).eq.2)then 
+	   go to 222
+	  
+	   elseif(kind02(is).eq.4)then
+	   go to 222
+	   
+	   elseif(kind02(is).eq.5)then
+	   go to 222
+
+	   elseif(kind02(is).eq.3)then
+	   go to 333
+
+          end if
+
+222   continue
+      ddfc1= -1*stresli(is)*Fl11*NSO
+      ddfc2=0.0  !-ul(2,is)*skl       !0.00  
+      ddfc3=0.0  !-ul(3,is)*rkl       !0.00 
+
+	ddfc4=+1*stresli(is)*Fl11*NSO
+      ddfc5=0.0   !+ul(2,is)*skl       !0.00  
+      ddfc6=0.0   !-ul(3,is)*rkl       !0.00  
+       go to 4444
+
+
+333   continue
+      ddfc1=0.0   !-ul(2,is)*skl      !0.00   
+      ddfc2=-stresli(is)*Fl21*NSO
+      ddfc3=0.0   !-ul(3,is)*rkl      !0.00    
+
+	ddfc4=0.0   !+ul(2,is)*skl      !0.00  
+      ddfc5=+stresli(is)*Fl21*NSO
+      ddfc6=0.0   !-ul(3,is)*rkl      !0.00    
+       go to 4444
+
+c      ##################################################
+
+4444   continue
+      fa(nbp(1,is)*3-2)=fa(nbp(1,is)*3-2)+ddfc1
+      fa(nbp(1,is)*3-1)=fa(nbp(1,is)*3-1)+ddfc2
+      fa(nbp(1,is)*3)=fa(nbp(1,is)*3)+ddfc3
+      fa(nbp(2,is)*3-2)=fa(nbp(2,is)*3-2)+ddfc4
+      fa(nbp(2,is)*3-1)=fa(nbp(2,is)*3-1)+ddfc5
+      fa(nbp(2,is)*3)=fa(nbp(2,is)*3)+ddfc6
+      
+	return
+	end
+
+
+
+C     ************************ MKDEF2 SUBROUTINE **************************** 
+
+       SUBROUTINE MKDEF2
+
+	  USE DEM_MMA
+	  USE DEM_GEN1, ONLY: NELE, ISTEEL
+	  USE DEM_GEN2, ONLY: DEF, DDF
+      
+	do 100 i=1,3*(nele+isteel)
+	def(i)=-ddf(i)
+ 100   continue	 
+
+      return
+	end
+
+C     ************************ FACTU2 SUBROUTINE **************************** 
+                         	 
+       SUBROUTINE FACTU2
+	    
+	  USE DEM_MMA
+        USE DEM_GEN1, ONLY: NCELE, NSELE, NELE, ISTEEL,NSPGLI
+	  USE DEM_GEN2, ONLY: IDEF, DEF, U, DDF, SN, RN,FA
+	  USE DEM_CON,  ONLY: NSPG
+        USE DEM_BON,  ONLY: DSO1,DSO2,TMAX1,PREDSO1,PREDSO2,PRETMAX1,
+     *                      BDC,BDRS,PREBDC,PREBDRS
+	  
+	   
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION   FA0(3*(MAXNELE+MAXISTEEL)),
+     *           DDU(3*(MAXNELE+MAXISTEEL))
+
+
+
+      do 70 jj=1,3*(nele+isteel)
+	fa(jj)=0.0
+ 70   continue
+
+
+!      ddu を求める
+	do 10 i=1,3*(nele+isteel)
+	  if(idef(i).eq.-1) then
+        ddu(i)=0.0
+	  else
+	  ddu(i)=def(i)
+        end if
+ 10   continue
+
+
+      do 20 i=1,3*(nele+isteel)
+	  u(i)=u(i)+ddu(i)
+ 20   continue
+
+      do 60 is=1,nspg
+          
+          
+        CALL STRAIN (IS)
+	  CALL STRESS (IS)
+	  CALL DEM_ACTU (IS)
+        CALL CRACK  (IS)
+ 
+ 60   continue
+
+       if(nsele.eq.0)then
+	 goto 554
+	 end if
+
+      do 65 is=1,nsele        
+	  CALL STRAINRF (IS)
+        CALL STRESSRF (IS)
+	  CALL DEM_ACTURF (IS)
+ 65   continue
+
+      if(ncele.eq.0)then
+	goto 554
+	end if
+
+
+	 ij=0
+	 it=0
+	 jj3=0
+	 JJ4=0
+      do 80 is=1,nspgli
+
+	IF (PREDSO1(IS).EQ.0.0)THEN
+        DSO1(IS)=0.0
+         DSO2(IS)=0.0
+        TMAX1(IS)=0.0
+	ELSE IF (PREDSO1(IS).GT.0.0)THEN
+         DSO1(IS)=PREDSO1(IS)
+         DSO2(IS)=PREDSO2(IS)
+        TMAX1(IS)=PRETMAX1(IS)
+        END IF
+
+	IF (PREBDC(IS).EQ.0.0)THEN
+         BDC(IS)=0.0
+	ELSE IF (PREBDC(IS).GT.0.0)THEN
+           BDC(IS)=PREBDC(IS)
+	END IF
+
+	IF (PREBDRS(IS).EQ.0.0)THEN
+         BDRS(IS)=0.0
+	ELSE IF (PREBDRS(IS).GT.0.0)THEN
+           BDRS(IS)=PREBDRS(IS)
+	END IF
+
+        CALL RCSLIP    (IS, IJ, IT)
+	  CALL STRESSLI  (IS, JJ3)
+        CALL DEM_ACTULI  (IS, JJ4)
+ 80   continue
+      
+
+ 554  continue
+ 
+        do   333 ik=1,3*(nele+isteel)
+	 fa0(ik)=fa(ik)
+333   continue
+     
+ 
+ 	rn=0.0
+      do 30 ii=1,(nele+isteel)
+        ii1=1+3*(ii-1)
+	  ii2=2+3*(ii-1)
+	  if(idef(ii1).eq.-1) then
+        rn=rn+(fa(ii1))**2
+        end if      
+         if(idef(ii2).eq.-1) then
+        rn=rn+(fa(ii2))**2
+        end if        
+ 30   continue
+
+        sn=0.0
+	do 90 ij=1,(nele+isteel)
+	  i1=1+3*(ij-1)
+	  i2=2+3*(ij-1)
+	  if(idef(i1).ne.-1) then
+	   rf1=fa0(i1)
+	   sn=sn+rf1**2
+	  end if
+        if(idef(i2).ne.-1) then  
+        rf2=fa0(i2)
+	  sn=sn+rf2**2
+	  end if       
+ 55   continue
+ 90   continue
+ 
+
+      do 200 i=1,3*(nele+isteel)
+	 if(idef(i).eq.-1)then
+	 ddf(i)=0.00
+	 else
+	 ddf(i)=fa(i)
+       end if
+200   continue
+
+      return
+	end
+
+
+**********************      CRACK SUBROUTINE      *******************     
+
+        SUBROUTINE CRACK (IS)
+
+	   USE DEM_MMA
+	   USE DEM_GEN1, ONLY: COD, KIND0
+	   USE DEM_CON,  ONLY: NSP, XYG, GL, JA, STRA, STRES, W, 
+     *                       STRAG, STRESG, WG 
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+	DIMENSION  XYGS(2, MAXNSPG)
+
+      im=kind0(nsp(1,is))
+	in=kind0(nsp(2,is))
+
+      x1=xyg(1,nsp(1,is))
+      y1=xyg(2,nsp(1,is))
+      x2=xyg(1,nsp(2,is))
+      y2=xyg(2,nsp(2,is))
+
+        x5=cod(1,ja(1,is))
+	 y5=cod(2,ja(1,is))
+        x3=cod(1,ja(2,is))
+	 y3=cod(2,ja(2,is))
+
+      x35=(x3-x5)
+	y35=(y3-y5)
+	x53=(x5-x3)
+	y53=(y5-y3)
+
+      al35=gl(is)
+
+
+       F11=y35
+	 F12=x35
+	 F21=x53
+	 F22=y35
+
+	 F31=-y35*((y3+y5)/2-y1)+x53*((x3+x5)/2-x1)
+	 F32=-x35*((y3+y5)/2-y1)+y35*((x3+x5)/2-x1)
+       F41=-F11
+	 F42=-F12
+	 F51=-F21
+	 F52=-F22
+	 F61=y35*((y3+y5)/2-y2)-x53*((x3+x5)/2-x2)
+	 F62=x35*((y3+y5)/2-y2)-y35*((x3+x5)/2-x2)
+      
+        
+      WG(1,IS)=(W(1,IS)*(F11/GL(IS)))+(W(2,IS)*(F12/GL(IS)))
+      WG(2,IS)=(W(1,IS)*(F21/GL(IS)))+(W(2,IS)*(F22/GL(IS)))
+
+
+            xygs(1,is)=(cod(1,ja(1,is))+cod(1,ja(2,is)))/2.0
+            xygs(2,is)=(cod(2,ja(1,is))+cod(2,ja(2,is)))/2.0
+      
+      STRESG(1,IS)=(stres(1,is)*(F11/GL(IS)))+(stres(2,is)*(F12/GL(IS)))
+      STRESG(2,IS)=(stres(1,is)*(F21/GL(IS)))+(stres(2,is)*(F22/GL(IS)))
+      STRAG(1,IS)=(stra(1,is)*(F11/GL(IS)))+(stra(2,is)*(F12/GL(IS)))
+      STRAG(2,IS)=(stra(1,is)*(F21/GL(IS)))+(stra(2,is)*(F22/GL(IS)))
+
+      return
+	end
+
+
+!*************** outout_crack *******************************
+!************************************************************
+       subroutine output_crack
+       
+        USE DEM_MMA 
+	  USE DEM_GEN1
+	  USE DEM_GEN2, ONLY: ISTEP, U, FA
+        USE DEM_CON
+        USE DEM_STE
+	  USE DEM_BON
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+       
+      open(lp14,file='crack.txt')
+      
+      write(lp14,*) nspg
+      
+       do 100 is=1,nspg
+       write(lp14,*)  w(1,is),w(2,is)
+100    continue
+       
+       !test
+       do 200 is=1,nspg
+           write(lp14,*) stra(1,is)
+200    continue
+       
+       close(lp14)
+
+       end
+       
+       
+!*************** output_steel *******************************
+!************************************************************
+      subroutine output_steel
+      
+      USE DEM_MMA 
+      USE DEM_GEN1
+      USE DEM_GEN2, ONLY: ISTEP, U, FA
+      USE DEM_CON
+      USE DEM_STE
+      USE DEM_BON
+      
+      IMPLICIT REAL*8 (A-H,O-Z)
+      
+      open(lp19,file='steel',form='binary')
+      
+      
+      write(lp19) nsele   !(integer)
+      write(lp19) nspgli  
+      write(lp19) nnod
+      
+      do 104 i1=1,nsele
+          write(lp19) nst(1,i1)
+          write(lp19) nst(2,i1)
+104   continue
+      
+      do 103 ii=1,nspgli
+      write(lp19) nbp(1,ii)
+103   continue
+      
+      do 100 is=1,nsele
+      write(lp19) As(is)  !(real)
+100   continue
+      
+      do 101 is=1,nsele
+      write(lp19) rI(is)  !(real)
+101   continue
+      
+      do 102 is=1,nspgli
+      write(lp19) dr(is)  !(real)
+102   continue
+      
+      close(lp19)
+      
+      
+      end
+       
+
+!*******************************visual2*******************************************
+!*********************************************************************************
+      subroutine visual2
+      	 
+        USE DEM_MMA 
+	  USE DEM_GEN1
+	  USE DEM_GEN2, ONLY: ISTEP, U, FA
+        USE DEM_CON
+        USE DEM_STE
+	  USE DEM_BON
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      
+      
+      real xxx
+      doubleprecision sx1,sx2
+      doubleprecision sy1,sy2
+      xxx=0.0d0
+
+      if(istep.eq.1) then
+	    write(lp17) ncele
+          write(lp17) nsele
+	    write(lp17) isteel
+	    write(lp17) istep         
+          write(lp17) modelheight
+          write(lp17) modelwidth
+          
+          DO 30 ME1=1,3 
+      	fto1=0.0              
+	    KN1=KDG(ME1)
+	    IF(KN1.NE.0)THEN
+	        DO 31 IG1= 1,KN1
+	            IF(ME1.EQ.1) IE1=2
+	            IF(ME1.EQ.2) IE1=1
+	            IF(ME1.EQ.3) IE1=0
+                  df1=fa(3*ndg(ME1,IG1)-IE1)      
+                  fto1=fto1+df1
+  31          continue
+              
+	    write(lp17) fto1
+          if (ME1.EQ.2) then
+              write(lp35,*) fto1
+          end if
+          end if	      			
+  30      continue
+          DO 32 ME3=1,3 
+      	fto3=0.0              
+	    KN3=KDG(ME3)
+	    IF(KN3.NE.0)THEN
+	        DO 33 IG3= 1,KN3
+	            IF(ME3.EQ.1) IE3=2
+	            IF(ME3.EQ.2) IE3=1
+	            IF(ME3.EQ.3) IE3=0
+                  df3=U(3*ndg(ME3,IG3)-IE3)   
+33            continue
+  	        write(lp17) DF3
+              if (ME3.EQ.2) then
+                  write(lp36,*) DF3
+              end if
+          end if	      			
+32        continue
+          
+          do 100 i1=1,ncele
+            write(lp17) kind0(i1)
+	      write(lp17) kaku(i1)
+        
+	      if(kaku(i1).eq.2) then
+	          write(lp17) cod(1,nod(1,i1))
+	          write(lp17) cod(2,nod(1,i1))
+
+	          write(lp17) cod(1,nod(2,i1))
+	          write(lp17) cod(2,nod(2,i1))
+                
+            else  
+	          do 200 j1=1,kaku(i1)
+	            write(lp17) cod(1,nod(j1,i1))
+	            write(lp17) cod(2,nod(j1,i1))
+200             continue
+            
+            end if 
+                
+	      write(lp17) xyg(1,i1)
+	      write(lp17) xyg(2,i1)
+
+100       continue
+         
+          
+          do 700 i2=1,nsele
+            write(lp17) kind01(i2)
+          
+	      write(lp17) cod(1,nst(1,i2))
+	      write(lp17) cod(2,nst(1,i2))
+
+            write(lp17) cod(1,nst(2,i2))
+	      write(lp17) cod(2,nst(2,i2))
+            
+700       continue
+
+          
+          if(ncele.eq.0)then
+	    goto 443
+	    end if
+
+          nspgli=nsele+isteel
+
+          
+443       continue
+              
+          write(lp5,*) istep
+      
+      else  
+      write(lp17) ncele
+      write(lp17) nsele
+	write(lp17) isteel
+	write(lp17) istep     
+      write(lp17) modelheight
+      write(lp17) modelwidth
+      
+      write(lp5,*) istep
+      
+      DO 20 ME1=1,3 
+      	fto1=0.0              
+	    KN1=KDG(ME1)
+	    IF(KN1.NE.0)THEN
+	    DO 21 IG1= 1,KN1
+	        IF(ME1.EQ.1) IE1=2
+	        IF(ME1.EQ.2) IE1=1
+	        IF(ME1.EQ.3) IE1=0
+              df1=fa(3*ndg(ME1,IG1)-IE1)      
+              !write(*,11221) df1             ! load 
+              fto1=fto1+df1
+  21      continue
+	write(lp17) fto1
+      !write(*,11111) fto1         !total load 
+      if (ME1.EQ.2) then
+              write(lp35,*) fto1
+          end if
+           end if	      			
+  20  continue
+ 
+11111 format(' TOTAL LOAD=',d15.5,' N')
+11221 format(' load=',d15.5,' N')
+
+  
+      DO 22 ME2=1,3 
+      	fto2=0.0              
+	    KN2=KUG(ME2)
+	    IF(KN2.NE.0)THEN
+	        DO 23 IG2= 1,KN2
+	            IF(ME2.EQ.1) IE2=2
+	            IF(ME2.EQ.2) IE2=1
+	            IF(ME2.EQ.3) IE2=0
+                  df2=fa(3*nug(ME2,IG2)-IE2)
+                  !write(*,22222) df2                 
+	            fto2=fto2+df2
+23            continue
+              !write(*,11121) fto2                 
+          end if	      			
+  22  continue
+      
+11121 format('TOTAL reaction=',d15.5,' N')
+22222 format('REACTION=',d15.5,' N')
+  
+  
+        DO 24 ME3=1,3 
+      	fto3=0.0              
+	    KN3=KDG(ME3)
+	    IF(KN3.NE.0)THEN
+	        DO 25 IG3= 1,KN3
+	            IF(ME3.EQ.1) IE3=2
+	            IF(ME3.EQ.2) IE3=1
+	            IF(ME3.EQ.3) IE3=0
+                  df3=U(3*ndg(ME3,IG3)-IE3)   
+                  !write(*,11122) DF3
+25            continue
+  	        write(lp17) DF3
+              if (ME3.EQ.2) then
+                  write(lp36,*) DF3
+              end if
+          end if	      			
+  24    continue
+
+11122   format('Displacement=',d15.5,' mm')
+      
+      
+        
+
+      do 400 i1=1,ncele
+          
+            gx=xyg(1,i1)+u(3*i1-2)*scale_factor
+	      gy=xyg(2,i1)+u(3*i1-1)*scale_factor
+	      write(lp17) gx
+	      write(lp17) gy
+        
+	      if(kaku(i1).eq.2) then    
+
+            x1=xyg(1,i1)+(cod(1,nod(1,i1))-xyg(1,i1))*cos(u(i1*3))
+     *              -(cod(2,nod(1,i1))-xyg(2,i1))*sin(u(i1*3))
+     *              +u(i1*3-2)*scale_factor
+	      y1=xyg(2,i1)+(cod(2,nod(1,i1))-xyg(2,i1))*cos(u(i1*3))
+     *              +(cod(1,nod(1,i1))-xyg(1,i1))*sin(u(i1*3))
+     *              +u(i1*3-1)*scale_factor
+        
+            x2=xyg(1,i1)+(cod(1,nod(2,i1))-xyg(1,i1))*cos(u(i1*3))
+     *              -(cod(2,nod(2,i1))-xyg(2,i1))*sin(u(i1*3))
+     *              +u(i1*3-2)*scale_factor
+	      y2=xyg(2,i1)+(cod(2,nod(2,i1))-xyg(2,i1))*cos(u(i1*3))
+     *              +(cod(1,nod(2,i1))-xyg(1,i1))*sin(u(i1*3))
+     *              +u(i1*3-1)*scale_factor
+        
+	      write(lp17) x1
+	      write(lp17) y1
+            write(lp17) x2
+	      write(lp17) y2
+        
+	       if(notoba(i1,1).eq.0) then
+	           write(lp17) xxx
+	           write(lp17) xxx
+                 write(lp17) xxx
+	           write(lp17) xxx
+	           else
+                 write(lp17) stra(1,notoba(i1,1))
+	           write(lp17) stres(1,notoba(i1,1))
+                 write(lp17) stra(2,notoba(i1,1))
+	           write(lp17) stres(2,notoba(i1,1))
+             end if
+	   
+
+            else 
+                
+	      do 500 j1=1,kaku(i1)
+
+            x1=xyg(1,i1)+(cod(1,nod(j1,i1))-xyg(1,i1))*cos(u(i1*3))
+     *              -(cod(2,nod(j1,i1))-xyg(2,i1))*sin(u(i1*3))
+     *              +u(i1*3-2)*scale_factor
+	      y1=xyg(2,i1)+(cod(2,nod(j1,i1))-xyg(2,i1))*cos(u(i1*3))
+     *              +(cod(1,nod(j1,i1))-xyg(1,i1))*sin(u(i1*3))
+     *              +u(i1*3-1)*scale_factor
+	        
+            write(lp17) x1
+            write(lp17) y1
+
+		     if(notoba(i1,j1).eq.0) then
+	         write(lp17) xxx
+	         write(lp17) xxx
+	         write(lp17) xxx
+	         write(lp17) xxx
+	         else
+	         write(lp17) stra(1,notoba(i1,j1))
+		     write(lp17) stres(1,notoba(i1,j1))
+	         write(lp17) stra(2,notoba(i1,j1))
+		     write(lp17) stres(2,notoba(i1,j1))
+               end if 
+
+500         continue
+           
+            end if
+
+    !        gx=xyg(1,i1)+u(3*i1-2)
+	!      gy=xyg(2,i1)+u(3*i1-1)
+	!      write(lp17) gx
+	!      write(lp17) gy
+	  
+            
+            
+400   continue
+      
+      
+      
+      do 800 i2=1,nsele
+        write(lp17) kind01(i2)
+
+	  sx1=cod(1,nst(1,i2))+u(3*(ncp(1,i2))-2)*scale_factor
+	  sy1=cod(2,nst(1,i2))+u(3*(ncp(1,i2))-1)*scale_factor
+        sx2=cod(1,nst(2,i2))+u(3*(ncp(2,i2))-2)*scale_factor
+	  sy2=cod(2,nst(2,i2))+u(3*(ncp(2,i2))-1)*scale_factor
+        write(lp17) sx1
+        write(lp17) sy1
+        write(lp17) sx2
+        write(lp17) sy2
+        write(lp17) strarf(i2)
+        write(lp17) stresrf(i2)
+
+        
+800   continue
+      
+      
+      
+      end if 
+      
+      
+      
+      
+!      do 325 ii=1,nspg
+!	  if((jyd(1,ii).eq.2).or.(jyd(1,ii).eq.3).or.(jyd(1,ii).eq.-2).or.
+!     *    (jyd(1,ii).eq.-3).or.(jyd(1,ii).eq.-5).or.
+!     *   (jyd(1,ii).eq.-6).or.(dispcrackspg(ii).eq.1))then
+	do 325 ii=1,nspg
+      if(dispcrackspg(ii).eq.1)then
+          write(lp5,8444) 1
+          else
+          write(lp5,8444) 0
+      endif
+ 325  continue
+      
+      write(lp5,*) nsele
+      do 335 jj=1,nsele
+	  if(jydrf(jj).eq.2.or.jydrf(jj).eq.3.or.jydrf(jj).eq.-2.or.
+     *    jydrf(jj).eq.-3.or.jydrf(jj).eq.-5.or.jydrf(jj).eq.-6)then
+	  write(lp5,*) 1
+        else
+        write(lp5,*) 0
+	  end if
+ 335  continue
+
+      write(lp5,*) nspgli
+      do 345 jj1=1,nspgli
+	  if(jydli(jj1).eq.2.or.jydli(jj1).eq.3.or.jydli(jj1).eq.-2.or.
+     *   jydli(jj1).eq.-5.or.jydli(jj1).eq.-6)then
+        write(lp5,*) 1
+        else 
+	  write(lp5,*) 0
+        end if
+ 345  continue
+
+
+8444  format(i10)
+!=========================================================!
+      
+      end
+      
+        
+!     ********************* output_result **************************************
+!     **************************************************************************      
+      subroutine output_result
+      
+      USE DEM_MMA 
+	USE DEM_GEN1
+	USE DEM_GEN2
+      USE DEM_CON
+      USE DEM_STE
+      USE DEM_BON
+        
+      integer n1,n2
+      real xa, ya
+      write(lp20,*) istep
+      write(lp201,*) istep
+      write(lp202,*) istep
+      write(lp375,*) istep
+      write(lp376,*) istep
+      write(lp377,*) istep
+      write(lp378,*) istep
+      write(lp124,*) istep
+      write(lp1241,*) istep
+      write(lp1242,*) istep
+      write(lp1243,*) istep
+
+!      do 10 i1= 1,nspg
+!          write(lp20,*) stra(1,i1),stra(2,i1),stres(1,i1),stres(2,i1)
+!10    continue
+      do 20 i1= 1,nsele
+          if (kind01(i1).eq.2) then
+              n1 = nst(1,i1)
+              n2 = nst(2,i1)
+          write(lp20,*) strarf(i1)
+          write(lp201,*) stresrf(i1)
+          write(lp202,*) cod(1,n2)
+          end if
+          if (kind01(i1).eq.4) then
+              n1 = nst(1,i1)
+              n2 = nst(2,i1)
+          end if
+20    continue
+      do 30 i1= 1,nspgli
+          if (kind02(i1).eq.4) then
+          
+          end if
+30    continue
+      
+      !nsp
+      do 40 i1=1,nspg
+          write(lp375,*) stra(1,i1)
+          write(lp376,*) stres(1,i1)
+          xa = 0.5*(cod(1,ja(1,i1))+cod(1,ja(2,i1)))
+          ya = 0.5*(cod(2,ja(1,i1))+cod(2,ja(2,i1)))
+          write(lp377,*) xa
+          write(lp378,*) ya
+          write(lp124,*)  w(1,i1)
+          write(lp1241,*)  w(2,i1)
+          write(lp1242,*)  WG(1,i1)
+          write(lp1243,*)  WG(2,i1)
+40    continue
+      
+      !nbp
+!      do 50 i1=1,nspgli
+!      write(lp20,*) nbp(1,i1)
+!50    continue
+      
+      end
+ 
+!     ********************* output_result2 **************************************
+!     **************************************************************************      
+      subroutine output_result2
+      
+      USE DEM_MMA 
+	USE DEM_GEN1
+	USE DEM_GEN2
+      USE DEM_CON
+      USE DEM_STE
+      USE DEM_BON
+        
+      write(lp31,*) istep
+      write(lp32,*) istep
+      write(lp33,*) istep
+      write(lp34,*) istep
+      
+      do 10 i1= 1,nsele
+          write(lp31,*) stresrf(i1)     
+10    continue
+      
+!      はり要素のひずみ
+      do 20 i1= 1,nsele
+          write(lp32,*) strarf(i1)   
+20    continue
+      
+      do 30 i1= 1,nspgli
+          write(lp33,*) slip(i1)
+30    continue
+      
+      do 40 i1= 1,nspgli
+          write(lp34,*) stresli(i1)
+40    continue
+      
+!     if(kind02(ii).eq.2) then     
+!      do 20 i1= 1,nsli2
+!          write(lp32,*) strarf(i1),stresrf(i1),slip(i1),stresli(i1)
+!20    continue
+!      end if
+      
+      end
+      
+
+!     ********************* output_displacement ****************************
+!     **********************************************************************      
+      subroutine output_displacement
+      
+        USE DEM_MMA 
+	  USE DEM_GEN1
+	  USE DEM_GEN2, ONLY: ISTEP, U, FA
+        USE DEM_CON
+        USE DEM_STE
+	  USE DEM_BON
+
+      IMPLICIT REAL*8 (A-H,O-Z)
+      
+      do 101 i=1,3*(nele+isteel)
+      write(lp18) u(i)
+101   continue
+
+      close(lp18)
+      
+      end
+      
+      
+  
+!     ********************* output_elmstress ****************************
+!     ****************************************************************      
+      subroutine output_elmstress
+      use DEM_CON
+      implicit real*8(a-h,o-z)
+      
+      open(lp22,file='elmstress',form='binary')
+      do 10 i=1,nspg
+          do 20 j=1,nrigidBody
+              if((nsp(1,i).eq.j).or.(nsp(2,i).eq.j))then
+              elmstress(j)=elmstress(j)+stres(1,i)**2
+              endif
+20        continue
+10    continue
+      
+      do 40 i=1,nrigidBody
+          elmstress(i)=sqrt(elmstress(i))
+40    continue
+      
+      do 30 i=1,nrigidBody
+          write(lp22) elmstress(i)
+30    continue
+      
+      close(lp22)
+      end
+      
+      
