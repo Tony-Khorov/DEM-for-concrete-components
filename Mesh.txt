@@ -1,0 +1,3870 @@
+      DIMENSION IX(10001),IY(10001),IZ(10001),NAME(10001)
+      DIMENSION KPARA(10),KVE(10001),KFE(30003)
+      DIMENSION KSV(40004),KEV(40004),KRF(40004),KLF(40004)
+      DIMENSION KSCE(40004),KSCCE(40004)
+      DIMENSION KECE(40004),KECCE(40004)
+      DIMENSION XVORO(30003),YVORO(30003),KWV3(10001),KWV4(10001)
+      DIMENSION KVCOLO(10001),KWV6(10001)
+      DIMENSION KECOLO(40004),XEDIRE(40004),YEDIRE(40004)
+      DIMENSION KFCOLO(30003),KFCENT(30003)
+      DATA MAXSIZ/10001/
+*
+      IXYMAX=2**28-1
+* --------------------------------------------------------------
+*
+*  IX(I)    x coordinate of the I-th point
+*  IY(I)    y coordinate of the I-th point
+*  NAME(I)  name (ordinal number) assigned to the I-th point
+*  IXYMAX   maximum absolute value of the coordinates of points
+*
+* --------------------------------------------------------------
+*
+*  ---  set the size of the data structure  ---
+*
+      KPARA(1)=MAXSIZ
+*
+*  ---  read the point data  ---
+* 
+      OPEN(2,FILE='data.dat')
+	read (2,*) mheight
+	read (2,*) mwidth
+
+      READ(2,*) NOFP
+      DO 10 II=1,NOFP
+      READ(2,*) IX(II)
+	read(2,*) IY(II)
+
+!9997  format(i15)
+
+
+   10 CONTINUE
+* 
+*  ---  generate the 2-dimensional Voronoi diagram  ---
+*
+      CALL VORON2(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KWV3,KWV4,KVCOLO,KWV6,
+     +  KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT)
+*
+*  ---  draw the Voronoi and Delanay diagram  ---
+*
+      CALL DRAWV2(NOFP,IX,IY,NAME,IXYMAX,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KVCOLO,KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT,
+     +  mheight,mwidth)
+*
+*
+      STOP
+      END
+*
+*
+      SUBROUTINE DRAWV2(NOFP,IX,IY,NAME,IXYMAX,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KVCOLO,KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT,
+     +  mheight,mwidth)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Draw the ordinary Voronoi diagram and the               *
+*      farthest-point Voronoi diagram                          *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION XVORO(1),YVORO(1)
+      DIMENSION KVCOLO(1),KECOLO(1),KFCOLO(1),KFCENT(1)
+      DIMENSION XEDIRE(1),YEDIRE(1)
+      DATA RADIUS/2.0/,WIDTH/0.3/,SCA/2.0/
+*
+      OPEN(1,FILE='draw.d')
+
+
+
+
+  !   •ÏX‰Á‚¦‚é
+      open(25,file='line607.txt')
+	 	
+*
+*  ---  draw the ordinary Voronoi diagram  ---
+*
+      call drmima(nofp,ix,iy,ixymm)
+c     CALL DRSTAR(-IXYMAX,IXYMAX,-IXYMAX,IXYMAX)
+      CALL DRSTAR(-ixymm,ixymm,-ixymm,ixymm)
+      CALL LWIDTH(WIDTH)
+c     CALL DRVORO(NOFP,IX,IY,IXYMAX,RADIUS,
+      CALL DRVORO(NOFP,IX,IY,ixymm,RADIUS,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KVCOLO,KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT,
+     +  mheight,mwidth)
+      CALL DRCOMP
+*
+*  ---  draw the farthest-point Voronoi diagram  ---
+*
+      CALL DRSTAR(-ixymm,ixymm,-ixymm,ixymm)
+      CALL LWIDTH(WIDTH)
+c     CALL DRFVOR(NOFP,IX,IY,IXYMAX,RADIUS,
+      CALL DRFVOR(NOFP,IX,IY,ixymm,RADIUS,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KVCOLO,KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT)
+      CALL DRCOMP
+*
+*  ---  draw the Delaunay diagram  ---
+*
+      CALL DRSTAR(-ixymm,ixymm,-ixymm,ixymm)
+      call DRDELA(NOFP,IX,IY,ixymm,RADIUS,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KVCOLO,KECOLO)
+      CALL DRCOMP
+*
+*  ---  draw the farthest-point Delaunay diagram  ---
+*
+      CALL DRSTAR(-ixymm,ixymm,-ixymm,ixymm)
+      call DRFDEL(NOFP,IX,IY,ixymm,RADIUS,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KVCOLO,KECOLO)
+      CALL DRCOMP
+*
+      RETURN
+      END
+* ---------------------------------------------
+*
+*    computeing the scale for the drawing
+*
+* -----------------------------------------------
+*
+      subroutine drmima(nofp,ix,iy,ixymm)
+      dimension ix(1),iy(1)
+      ixymm=0
+      do 10 i=1,nofp
+      if(iabs(ix(i)).gt.ixymm) ixymm=iabs(ix(i))
+      if(iabs(iy(i)).gt.ixymm) ixymm=iabs(iy(i))
+   10 continue 
+      return
+      end
+*      
+*
+      SUBROUTINE VORON2(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KWV3,KWV4,KVCOLO,KWV6,
+     +  KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Construction of the 2-dimensional Voronoi diagram       *
+*      and the farthest-point Voronoi diagram through          *
+*      the 3-dimensional convex hull                           *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION XVORO(1),YVORO(1),KWV3(1),KWV4(1)
+      DIMENSION KVCOLO(1),KWV6(1)
+      DIMENSION KECOLO(1),XEDIRE(1),YEDIRE(1)
+      DIMENSION KFCOLO(1),KFCENT(1)
+* --------------------------------------------------------------
+*    NOFP    number of points
+*    IX(I)   x-coordinate of the I-th point
+*    IY(I)   y-coordinate of the I-th point
+*    IZ(I)   work area for transforming the problem to the 
+*            three-dimensional convex hull problem
+*    XVORO(I)  x-coordinate of the I-th Voronoi point
+*    YVORO(I)  y-coordinate of the I-th Voronoi point
+*    KVCOLO  color of the points (generators)
+*        0 --- vertex inside the convex hull (generator with 
+*              bounded region)
+*        1 --- vertex of the convex hull (generator with 
+*              unbounded region)
+*    KECOLO  color of the edges 
+*        0 --- unused
+*        1 --- Delaunay edge (dual of Voronoi edge)
+*        2 --- farthest-point Delaunay edge (dual of a
+*              farthest-point Delaunay edge)
+*        3 --- convex hull edge (dual of infinite edge)
+*    XEDIRE, YEDIRE   x and y components of the unit vector 
+*                     parallel to the Voronoi edge
+*    KFCOLO  color of the faces (dual of Voronoi points)
+*        1 --- face orienting downward
+*       -1 --- face orienting upward 
+*    KFCENT  center of the inscribing circle
+*        1 --- center is defined
+*        9 --- center is not defined (because it is too far)
+*    other arguments:   work areas (refer to CHULL3) 
+* --------------------------------------------------------------
+* 
+*  ---  construct the Delaunay diagram  --- 
+*
+      CALL DELAU2(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KWV3,KWV4,KVCOLO,KWV6,
+     +  KECOLO,XEDIRE,KFCOLO,KFCENT)
+*
+*  ---  compute the coordinates of the Voronoi points  ---
+*
+      CALL VOCOOR(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KWV3,KWV4,KVCOLO,KWV6,
+     +  KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT)
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE VOCOOR(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KWV3,KWV4,KVCOLO,KWV6,
+     +  KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Computation of the coordinates of the Voronoi points    * 
+*      and the edge directions                                 *
+*                                                              *
+*        KFCENT =  0:  unused cell                             * 
+*        KFCENT =  1:  center is defined                       *
+*        KFCENT =  9:  center is not defined                   *
+*                                                              *
+*        XEDIRE  x component of the normal vector parallel     *
+*                to the Voronoi edge                           *
+*        YEDIRE  y component of the normal vector parallel     *
+*                to the Voronoi edge                           *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION XVORO(1),YVORO(1),KWV3(1),KWV4(1)
+      DIMENSION KVCOLO(1),KWV6(1)
+      DIMENSION KECOLO(1),XEDIRE(1),YEDIRE(1)
+      DIMENSION KFCOLO(1),KFCENT(1)
+      DIMENSION IV(3)
+      DOUBLE PRECISION DJ2,DJ3,DJ4
+      DATA SMALLV/9.0/,THRE/0.01/
+*
+      DO 10 IFACE=1,KPARA(2)
+      IF(KFCOLO(IFACE).EQ.0) THEN
+        KFCENT(IFACE)=0
+                   GOTO 10
+      ENDIF
+*
+*  ---  fetch the three generators around the Voronoi point  ---
+*
+      CALL VONF3(IFACE,IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+*
+*  ---  compute the homogeneous coordinates of the center  ---
+*
+      X1=FLOAT(IX(IV(1))-IX(IV(3)))
+      Y1=FLOAT(IY(IV(1))-IY(IV(3)))
+      X2=FLOAT(IX(IV(2))-IX(IV(3)))
+      Y2=FLOAT(IY(IV(2))-IY(IV(3)))
+      XY1=(X1**2+Y1**2)/2.0
+      XY2=(X2**2+Y2**2)/2.0
+      DJ2=Y1*XY2-Y2*XY1
+      DJ3=X1*XY2-X2*XY1
+      DJ4=X1*Y2-X2*Y1
+*
+*  ---  check whether the center is very far  ---
+*
+      IF(ABS(DJ4).LT.THRE) THEN
+        KFCENT(IFACE)=9
+               GOTO 10
+      ENDIF
+*
+      IF(DABS(DJ2).GT.SMALL) THEN
+        DL1=DLOG10(DABS(DJ2))-DLOG10(DABS(DJ4))
+        IF(DL1.GT.SMALLV) THEN
+          KFCENT(IFACE)=9
+               GOTO 10
+        ENDIF
+      ENDIF
+*
+      IF(DABS(DJ3).GT.SMALL) THEN
+        DL2=DLOG10(DABS(DJ3))-DLOG10(DABS(DJ4))
+        IF(DL2.GT.SMALLV) THEN
+          KFCENT(IFACE)=9
+               GOTO 10
+        ENDIF
+      ENDIF
+*
+*  ---  compute the coordinates of the Voronoi point  ---
+*
+        KFCENT(IFACE)=1
+        XVORO(IFACE)=FLOAT(IX(IV(3)))-DJ2/DJ4
+        YVORO(IFACE)=FLOAT(IY(IV(3)))+DJ3/DJ4
+   10 CONTINUE
+*
+*  ---  compute the edge directions  ---
+*
+      DO 20 IE=1,KPARA(3)
+      IF(KECOLO(IE).EQ.0) GOTO 20
+      ISV=KSV(IE)
+      IEV=KEV(IE)
+      DX= IY(IEV)-IY(ISV)
+      DY=-IX(IEV)+IX(ISV)
+      DL=SQRT(DX**2+DY**2)
+      XEDIRE(IE)=DX/DL
+      YEDIRE(IE)=DY/DL
+   20 CONTINUE
+*
+      RETURN
+      END 
+      SUBROUTINE DELAU2(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KWV1,KWV2,KWV3,KWV4,KVCOLO,KWV6,KECOLO,KWE2,KFCOLO,KWF2)
+* ------------------------------------------------------------ *
+*                                                              *
+*    Construction of the 2-dimensional Delaunay triangulation  *
+*    and the farthest-point Delaunay triangulation through     *
+*    the 3-dimensional convex hull                             *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION KWV1(1),KWV2(1),KWV3(1),KWV4(1)
+      DIMENSION KVCOLO(1),KWV6(1)
+      DIMENSION KECOLO(1),KWE2(1),KFCOLO(1),KWF2(1)
+* --------------------------------------------------------------
+*    NOFP    number of points
+*    IX(I)   x-coordinate of the I-th point
+*    IY(I)   y-coordinate of the I-th point
+*    IZ(I)   work area for transforming the problem to the 
+*            three-dimensional convex hull problem
+*    KVCOLO  color of the points
+*        0 --- vertex inside the convex hull
+*        1 --- vertex of the convex hull
+*    KECOLO  color of the edges 
+*        0 --- unused
+*        1 --- Delaunay edge
+*        2 --- farthest-point Delaunay edge
+*        3 --- convex hull edge
+*    KFCOLO  color of the faces
+*        1 --- face orienting downward
+*       -1 --- face orienting upward
+*    other arguments:   work areas (refer to CHULL3)
+* --------------------------------------------------------------
+      IXYMAX=2**28-1
+      ZSCALE=FLOAT(2**29)
+* 
+*  ---  check the number of the points  ---
+*
+      IF(NOFP.LE.5) GOTO 700
+      IF(NOFP+1.GT.KPARA(1)) GOTO 701
+*
+*  ---  lift up the points onto the surface of paraboloid  ---
+*
+      DO 10 II=1,NOFP
+      IF(IABS(IX(II)).GT.IXYMAX) THEN
+        NP=II
+        IXII=IX(II)
+          GOTO 702
+      ENDIF
+      IF(IABS(IY(II)).GT.IXYMAX) THEN
+        NP=II
+        IYII=IY(II)
+          GOTO 702
+      ENDIF
+      IZ(II)=IFIX((FLOAT(IX(II))**2+FLOAT(IY(II))**2)/ZSCALE)
+   10 CONTINUE
+*
+*  ---  generate the three-dimensional convex hull  ---
+*
+      CALL CHULL3(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KWV1,KWV2,KWV3,KWV4,KVCOLO,KWV6,KECOLO,KWE2,KFCOLO,KWF2)
+*
+*  ---  classify the edges  ---
+*
+      CALL DELCOL(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KECOLO,KFCOLO)
+*
+      RETURN
+*
+  700 CONTINUE
+      WRITE(6,710) NOFP
+  710 FORMAT('NOFP should be greater than 5.'/
+     +       '  The present NOFP is ',I3)
+           GOTO 110
+  701 CONTINUE
+      WRITE(6,711) KPARA(1)-1,NOFP
+  711 FORMAT('NOFP should not be greater than',I8/
+     +       '  The present NOFP is ',I8)
+           GOTO 110
+  702 CONTINUE
+      WRITE(6,712) IXYMAX,NP IXII,IYII
+  712 FORMAT('Error: The coordinate must be smaller than ',I12/
+     +       ' NP,IX,IY =',3I12)
+  110 CONTINUE
+      STOP
+      END
+*
+*
+      SUBROUTINE DELCOL(NOFP,IX,IY,IZ0,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KECOLO,KFCOLO)
+* ------------------------------------------------------------ *
+*                                                              *
+*    Classification of the faces and the edges                 *
+*    KFCOLO                                                    *
+*      1   face orienting downward                             *
+*     -1   face orienting upward                               *
+*    KECOLO                                                    *
+*      1   Dealuany edge                                       *
+*      2   edge in the farthest-point Delaunay diagram         *
+*      3   convex hull edge                                    *
+*      0   unused edge                                         *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ0(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION KECOLO(1),KFCOLO(1)
+*
+      DIMENSION IV(4)
+      DATA INEGA/-100/
+*
+*  ---  set the view point below the xy plane  ---
+*
+      IVIEW=KPARA(7)+1
+      IX(IVIEW)=0
+      IY(IVIEW)=0
+      IZ0(IVIEW)=INEGA
+      NAME(IVIEW)=IVIEW
+      IV(4)=IVIEW
+*
+*  ---  classify the faces  ---
+*
+      DO 10 IVERT=1,KPARA(7)
+      IZ0(IVERT)=0
+   10 CONTINUE
+      DO 20 IFACE=1,KPARA(2)
+      IF(KFCOLO(IFACE).NE.1) GOTO 20
+      CALL VONF3(IFACE,IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      KFCOLO(IFACE)=JORSSS(IV,IX,IY,IZ0,NAME)
+   20 CONTINUE
+*
+*  ---  classify the edges  ---
+*
+      DO 30 IE=1,KPARA(3)
+      IF(KECOLO(IE).NE.1) GOTO 30
+      IRF=KRF(IE)
+      ILF=KLF(IE)
+      IF(KFCOLO(IRF)*KFCOLO(ILF).EQ.-1) THEN
+        KECOLO(IE)=3
+      ELSEIF(KFCOLO(IRF).EQ.1) THEN
+        KECOLO(IE)=1
+      ELSE
+        KECOLO(IE)=2
+      ENDIF
+   30 CONTINUE
+*
+      RETURN
+      END
+      SUBROUTINE CHULL3(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KCLIST,MOL,KHULNV,KHULPV,KWV5,KWV6,
+     +  KWE1,KWE2,KWF1,KWF2)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Generate the convex hull of points                      *
+*                    in the three-dimensional space            *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION KCLIST(1),MOL(1),KHULNV(1),KHULPV(1)
+      DIMENSION KWV5(1),KWV6(1),KWE1(1),KWE2(1),KWF1(1),KWF2(1)
+* --------------------------------------------------------------
+*
+*   NOFP       number of input points
+*   IX(I)      x coordinate of the I-th input point 
+*   IY(I)      y coordinate of the I-th input point
+*   IZ(I)      z coordinate of the I-th input point 
+*   NAME(I)    number (name) assigned to the I-th input point
+*              (If it is not assigned consistently in the input
+*              data, the system assigns it automatically.)
+*   KPARA      parameters for the data structure
+*    KPARA(1)  maximum size of the number of vertices
+*    KPARA(2)  maximum size of the number of faces
+*    KPARA(3)  maximum size of the number of edges
+*    KPARA(4)  pointer to the list of empty-face cells
+*    KPARA(5)  pointer to the list of empty-edge cells
+*    KPARA(6)  
+*    KPARA(7)  number of the originally given points
+*    KPARA(8)  
+*    KPARA(9)  leftmost vertex of the output convex hull
+*   KVE(I)     edge incident to the I-th vertex
+*   KFE(I)     edge incident to the I-th face
+*   KSV(I)     start vertex of the I-th edge
+*   KEV(I)     end vertex of the I-th edge
+*   KRF(I)     right face of the I-th edge
+*   KLF(I)     left face of the I-th edge
+*   KSCE(I)    edge clockwise next at the start vertex
+*   KSCCE(I)   edge counterclockwise next at the start vertex
+*   KECE(I)    edge clockwise next at the end vertex
+*   KECCE(I)   edge counterclockwise next at the end vertex
+*
+*   The following are work areas in this subroutine
+*
+*   KCLIST(I)  leftmost vertex of the I-th convex hull
+*   MOL        modified list of the input points, in which the
+*              vertices are sorted in their x-coordinates
+*              (This array will be also used as IZ0 (the z
+*              coordinates of the points projected on the xy
+*              plane) in MERGCH, and as KVSTAC (stack for the
+*              vertices) in GCYLIN.)
+*   KHULNV(I)  doubly-linked cyclic list of the vertices 
+*              belonging to the same convex hull
+*   KHULPV(I)  doubly-linked cyclic list of the vertices 
+*              belonging to the same convex hull
+*   
+*   KW**       work areas used in the subroutines
+*
+* --------------------------------------------------------------
+      IXYMAX=2**28-1
+*
+*  ---  set the basic parameters for the data structure  ---
+*
+      KPARA(2)=3*KPARA(1)
+      KPARA(3)=4*KPARA(1)
+*
+*  ---  check the number of points  ---
+*
+      KPARA(7)=NOFP
+      IF(NOFP.LE.5) GOTO 700
+      IF(KPARA(7)+1.GT.KPARA(1)) GOTO 701
+*  
+*  ---  check the range of the coordinates  ---
+*
+      DO 4 II=1,NOFP
+      IF(IABS(IX(II)).GT.IXYMAX) THEN
+        NP=II
+        IXII=IX(II)
+          GOTO 702
+      ENDIF
+      IF(IABS(IY(II)).GT.IXYMAX) THEN
+        NP=II
+        IYII=IY(II)
+          GOTO 702
+      ENDIF
+      IF(IABS(IZ(II)).GT.IXYMAX) THEN
+        NP=II
+        IZII=IZ(II)
+          GOTO 702
+      ENDIF
+    4 CONTINUE
+*
+*  ---  check whether NAME is consistent  ---
+* 
+      CALL HPSORT(NOFP,NAME,NAME,MOL)
+      DO 5 II=1,NOFP-1
+      IF(NAME(MOL(II)).EQ.NAME(MOL(II+1))) GOTO 6
+    5 CONTINUE
+          GOTO 10
+*
+*  ---  assign NAME automatically  ---
+*
+    6 CONTINUE
+      DO 7 II=1,NOFP
+      NAME(II)=II
+    7 CONTINUE
+*
+*  ---  sort the input points in the x-coordinates  ---
+*
+   10 CONTINUE
+      CALL HPSORT(NOFP,IX,NAME,MOL) 
+*
+*  ---  set the initial state of the data structure  ---
+*
+      CALL KINIT(KPARA,KFE,KSV)
+*
+*  ---  compute the number of dihedra  ---
+*
+      NOFDIH=3-MOD(NOFP-1,4)
+      NOFC=(NOFP-3*NOFDIH)/4
+      IF(NOFC.EQ.0) GOTO 30
+*
+*  ---  construct convex hulls for four points  ---
+*
+      DO 20 NC=1,NOFC
+      IP=NC*4-3
+      CALL CH4P(IP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  MOL,KHULNV,KHULPV)
+      KCLIST(NC)=MOL(IP)
+   20 CONTINUE
+      IF(NOFDIH.EQ.0) GOTO 39
+*
+*  ---  construct convex hulls for three points  ---
+*
+   30 CONTINUE
+      DO 31 II=1,NOFDIH
+      NC=NOFC+II
+      IP=4*NOFC+3*II-2
+      CALL CH3P(IP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  MOL,KHULNV,KHULPV)
+      KCLIST(NC)=MOL(IP)
+   31 CONTINUE
+      NOFC=NOFC+NOFDIH
+*
+   39 CONTINUE
+*
+*  ---  merge two convex hulls  ---
+*
+   40 CONTINUE
+          write(6,789) nofc
+  789     format('  ---  nofc =',i6,'  ---')
+      IF(NOFC.EQ.1) GOTO 90
+      DO 41 II=1,NOFC-1,2
+      LMP1=KCLIST(II)
+      LMP2=KCLIST(II+1)
+      CALL MERGCH(LMP1,LMP2,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  MOL,KHULNV,KHULPV,KWV5,KWV6,
+     +  KWE1,KWE2,KWF1,KWF2)
+      KCLIST((II+1)/2)=LMP1
+   41 CONTINUE
+      IF(MOD(NOFC,2).EQ.0) THEN
+        NOFC=NOFC/2
+      ELSE
+        KCLIST(NOFC/2+1)=KCLIST(NOFC)
+        NOFC=NOFC/2+1
+      ENDIF
+*
+*  ---  repeat merging  ---
+*
+          GOTO 40
+*
+*  ---  mark active elements  ---
+*
+   90 CONTINUE
+      KPARA(9)=KCLIST(1)
+      DO 91 I=1,KPARA(1)
+      KWV5(I)=0
+   91 CONTINUE
+      IVS=KPARA(9)
+      IV=IVS
+   92 CONTINUE
+      KWV5(IV)=1
+      IV=KHULNV(IV)
+      IF(IV.EQ.IVS) GOTO 93
+          GOTO 92
+   93 CONTINUE
+      DO 94 I=1,KPARA(3)
+      KWE1(I)=1
+   94 CONTINUE
+      IE=KPARA(5)
+   95 CONTINUE  
+      IF(IE.EQ.0) GOTO 96
+      KWE1(IE)=0
+      IE=KSV(IE)
+          GOTO 95
+   96 CONTINUE
+      DO 97 JF=1,KPARA(2)
+      KWF1(JF)=1
+   97 CONTINUE
+      JF=KPARA(4)
+   98 CONTINUE
+      IF(JF.EQ.0) GOTO 100
+      KWF1(JF)=0
+      JF=KFE(JF)
+          GOTO 98 
+*
+  100 CONTINUE
+      RETURN
+*
+*  ---  error message  ---
+*
+  700 CONTINUE
+      WRITE(6,710) NOFP
+  710 FORMAT('NOFP should be greater than 5.'/
+     +       'presenet NOFP is ',I3)
+           GOTO 110
+  701 CONTINUE
+      WRITE(6,711) KPARA(1)-1,NOFP
+  711 FORMAT('NOFP should not be greater than',I8/
+     +       'presenet NOFP is ',I8)
+           GOTO 110
+  702 CONTINUE
+      WRITE(6,712) IXYMAX,NP,IXII,IYII,IZII
+  712 FORMAT('Error: coordinate must be smaller than',I12/
+     + 'IP,IX,IY,IZ=',4I12)
+           GOTO 110
+*
+  110 CONTINUE 
+      STOP
+      END
+*
+*
+      SUBROUTINE CH4P(IP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  MOL,KHULNV,KHULPV)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Generate the convex hull for four points                *
+*                    in the three-dimensional space            *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION MOL(1),KHULNV(1),KHULPV(1)
+* --------------------------------------------------------------
+*
+*    IP   sorted number of the leftmost point among the four
+*
+* --------------------------------------------------------------
+      DIMENSION IV(4)
+*
+*  ---  pick up the four points  ---
+*
+      IV(1)=MOL(IP)
+      IV(2)=MOL(IP+1)
+      IV(3)=MOL(IP+2)
+      IV(4)=MOL(IP+3)
+*
+*  ---  generate the cyclic list of the four vertices  ---
+*
+      DO 10 I=1,4
+      IF(I.NE.4) KHULNV(IV(I))=IV(I+1)
+      IF(I.NE.1) KHULPV(IV(I))=IV(I-1)
+   10 CONTINUE
+      KHULNV(IV(4))=IV(1)
+      KHULPV(IV(1))=IV(4)
+* 
+*  ---  check the orientation of the four points  ---
+*       
+      IF(JORSSS(IV,IX,IY,IZ,NAME).EQ.1) THEN
+        IV(3)=MOL(IP+3)
+        IV(4)=MOL(IP+2)
+      ENDIF
+*
+*  ---  generate a tetrahedron  ---
+*
+      CALL TETRA(IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE TETRA(IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+* ------------------------------------------------------------ *
+*                                                              *
+*   Generate a tetrahedron with the vertices IV(1), ..., IV(4) *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IV(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION MF(4),ME(6)
+* --------------------------------------------------------------
+*
+*   MF   four faces that constitute the tetrahedron
+*   ME   six edges that constitute the tetrahedron
+*
+* --------------------------------------------------------------
+*
+*  ---  fetch new faces and new edges  ---
+*
+      DO 10 II=1,4
+      MF(II)=KNEWF(KPARA,KFE)
+   10 CONTINUE
+      DO 20 II=1,6
+      ME(II)=KNEWE(KPARA,KSV)
+   20 CONTINUE
+*
+*  ---  generate the face-to-edge pointers  ---
+*
+      DO 30 II=1,4
+      KFE(MF(II))=ME(II)
+   30 CONTINUE
+*
+*  ---  generate the vertex-to-edge pointers  ---
+*
+      KVE(IV(1))=ME(1)
+      KVE(IV(2))=ME(1)
+      KVE(IV(3))=ME(5)
+      KVE(IV(4))=ME(5)
+*
+*  ---  set the start and end vertices  ---
+*
+      KSV(ME(1))=IV(2)
+      KSV(ME(2))=IV(3)
+      KSV(ME(3))=IV(4)
+      KSV(ME(4))=IV(2)
+      KSV(ME(5))=IV(3)
+      KSV(ME(6))=IV(4)
+      KEV(ME(1))=IV(1)
+      KEV(ME(2))=IV(1)
+      KEV(ME(3))=IV(1)
+      KEV(ME(4))=IV(3)
+      KEV(ME(5))=IV(4)
+      KEV(ME(6))=IV(2)
+*
+*  ---  set the right and left faces  ---
+*
+      KRF(ME(1))=MF(1)
+      KRF(ME(2))=MF(2)
+      KRF(ME(3))=MF(3)
+      KRF(ME(4))=MF(4)
+      KRF(ME(5))=MF(4)
+      KRF(ME(6))=MF(4)
+      KLF(ME(1))=MF(3)
+      KLF(ME(2))=MF(1)
+      KLF(ME(3))=MF(2)
+      KLF(ME(4))=MF(1)
+      KLF(ME(5))=MF(2)
+      KLF(ME(6))=MF(3)
+*
+*  ---  set the edge-to-edge pointers  ---
+*
+      KSCE(ME(1))=ME(4)
+      KSCE(ME(2))=ME(5)
+      KSCE(ME(3))=ME(6)
+      KSCE(ME(4))=ME(6)
+      KSCE(ME(5))=ME(4)
+      KSCE(ME(6))=ME(5)
+      KSCCE(ME(1))=ME(6)
+      KSCCE(ME(2))=ME(4)
+      KSCCE(ME(3))=ME(5)
+      KSCCE(ME(4))=ME(1)
+      KSCCE(ME(5))=ME(2)
+      KSCCE(ME(6))=ME(3)
+      KECE(ME(1))=ME(3)
+      KECE(ME(2))=ME(1)
+      KECE(ME(3))=ME(2)
+      KECE(ME(4))=ME(2)
+      KECE(ME(5))=ME(3)
+      KECE(ME(6))=ME(1)
+      KECCE(ME(1))=ME(2)
+      KECCE(ME(2))=ME(3)
+      KECCE(ME(3))=ME(1)
+      KECCE(ME(4))=ME(5)
+      KECCE(ME(5))=ME(6)
+      KECCE(ME(6))=ME(4)
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE CH3P(IP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  MOL,KHULNV,KHULPV)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Generate the convex hull for three points               *
+*                    in the three-dimensional space            *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION MOL(1),KHULNV(1),KHULPV(1)
+* --------------------------------------------------------------
+*
+*   IP   sorted number of the leftmost point among the three
+*
+* --------------------------------------------------------------
+      DIMENSION IV(3)
+*
+*  ---  pick up the three points  ---
+*
+      IV(1)=MOL(IP)
+      IV(2)=MOL(IP+1)
+      IV(3)=MOL(IP+2)
+*
+*  ---  generate the cyclic list of the three vertices  ---
+*
+      DO 10 I=1,3
+      IF(I.NE.3) KHULNV(IV(I))=IV(I+1)
+      IF(I.NE.1) KHULPV(IV(I))=IV(I-1)
+   10 CONTINUE
+      KHULNV(IV(3))=IV(1)
+      KHULPV(IV(1))=IV(3)
+* 
+*  ---  generate a dihedron  ---
+*
+      CALL DIHED(IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE DIHED(IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+* ------------------------------------------------------------ *
+*                                                              *
+*    Generate a dihedron with the vertices IV(1), ..., IV(3)   *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IV(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION MF(2),ME(3)
+* --------------------------------------------------------------
+*
+*   MF   two faces that constitute the dihedron
+*   ME   three edges that constitute the dihedron
+*
+* --------------------------------------------------------------
+*
+*  ---  fetch new faces and new edges  ---
+*
+      DO 10 II=1,2
+      MF(II)=KNEWF(KPARA,KFE)
+   10 CONTINUE
+      DO 20 II=1,3
+      ME(II)=KNEWE(KPARA,KSV)
+   20 CONTINUE
+*
+*  ---  generate the face-to-edge pointers  ---
+*
+      DO 30 II=1,2
+      KFE(MF(II))=ME(1)
+   30 CONTINUE
+*
+*  ---  generate the vertex-to-edge pointers  ---
+*
+      DO 31 II=1,3
+      KVE(IV(II))=ME(II)
+   31 CONTINUE
+*
+*  ---  set the start and end vertices  ---
+*
+      KSV(ME(1))=IV(1)
+      KSV(ME(2))=IV(2)
+      KSV(ME(3))=IV(3)
+      KEV(ME(1))=IV(2)
+      KEV(ME(2))=IV(3)
+      KEV(ME(3))=IV(1)
+*
+*  ---  set the right and left faces  ---
+*
+      DO 32 II=1,3
+      KRF(ME(II))=MF(1)
+      KLF(ME(II))=MF(2)
+   32 CONTINUE
+*
+*  ---  set the edge-to-edge pointers  ---
+*
+      KSCE(ME(1))=ME(3)
+      KSCE(ME(2))=ME(1)
+      KSCE(ME(3))=ME(2)
+      KSCCE(ME(1))=ME(3)
+      KSCCE(ME(2))=ME(1)
+      KSCCE(ME(3))=ME(2)
+      KECE(ME(1))=ME(2)
+      KECE(ME(2))=ME(3)
+      KECE(ME(3))=ME(1)
+      KECCE(ME(1))=ME(2)
+      KECCE(ME(2))=ME(3)
+      KECCE(ME(3))=ME(1)
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE MERGCH(LMP1,LMP2,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  IZ0,KHULNV,KHULPV,KCNXV,KCCNXV,
+     +  KWE1,KWE2,KWF1,KWF2)
+* ------------------------------------------------------------ *
+*                                                              *
+*        Merge two convex hulls whose leftmost points are      *
+*        LMP1 and LMP2, respectively                           *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION IZ0(1),KHULNV(1),KHULPV(1),KCNXV(1),KCCNXV(1) 
+      DIMENSION KWE1(1),KWE2(1),KWF1(1),KWF2(1)
+* --------------------------------------------------------------
+*
+*    KCNXV(I)  clockwise next vertex of the I-th vertex on the
+*              silhouette on the xy plane
+*    KCCNXV(I) counterclockwise next vertex of the I-th vertex
+*              on the silhouette on the xy plane
+*    IZ0       z coordinates of the projected points on the xy
+*              plane
+*
+* --------------------------------------------------------------
+*
+*  ---  set the z-coordinates of the projected points  ---
+*
+      DO 10 I=1,KPARA(7)
+      IZ0(I)=0
+   10 CONTINUE
+*
+*  ---  generate the list of vertices on the boundary of 
+*       the projection of the convex hull onto the xy plane  ---
+*
+      CALL SHADOW(LMP1,IX,IY,NAME,IRMP1,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  IZ0,KCNXV,KCCNXV)
+      CALL SHADOW(LMP2,IX,IY,NAME,IRMP2,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  IZ0,KCNXV,KCCNXV)
+*
+*  ---  find the common tangent line  ---
+*
+      CALL COMTAN(KCNXV,KCCNXV,IRMP1,LMP2,IX,IY,NAME,JV1,JV2)
+*
+*  ---  wrap the two convex hulls by a cylindrical sequence
+*       of triangular faces                                  ---
+*
+      CALL GCYLIN(JV1,JV2,IX,IY,IZ,NAME,      
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  IZ0,KHULNV,KHULPV,KWE1,KWE2,KWF1,KWF2)
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE SHADOW(LMP,IX,IY,NAME,IRMP,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  IZ0,KCNXV,KCCNXV)
+* ------------------------------------------------------------ *
+*                                                              *
+*    Generate the cyclic list of vertices on the silhouette    *
+*    of the convex hull projected onto the xy plane            *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION IZ0(1),KCNXV(1),KCCNXV(1)
+*
+      DIMENSION IV(4)
+      DATA IPOSIT/100/
+* --------------------------------------------------------------
+*
+*  LMP       leftmost point of the convex hull
+*  IRMP      rightmost point of the convex hull
+*  KCNXV(I)  clockwise next vertex of the I-th vertex on the
+*            boundary of the silhouette
+*  KCCNXV(I) counterclockwise next vertex of the I-th vertex
+*            on the boundary of the silhouette
+*
+* --------------------------------------------------------------
+*
+*  ---  set the initial values  ---
+*
+      IVSTAR=LMP
+      IRMP=LMP
+      IVERT=LMP
+*
+*  ---  find a silhouette edge around vertex IVERT  ---
+*
+   20 CONTINUE
+      IESTAR=KVE(IVERT)
+*
+*  ---  set the view point  ---
+*
+      IVIEW=KPARA(7)+1
+      IX(IVIEW)=IX(IVERT)
+      IY(IVIEW)=IY(IVERT)
+      IZ0(IVIEW)=IPOSIT
+      NAME(IVIEW)=IVIEW
+      IV(4)=IVIEW
+      IF(IVERT.EQ.KSV(IESTAR)) THEN
+        IFACE=KRF(IESTAR)
+      ELSE
+        IFACE=KLF(IESTAR)
+      ENDIF
+      CALL VONF3(IFACE,IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      IOR=JORSSS(IV,IX,IY,IZ0,NAME)
+      IEDGE=IESTAR
+*
+*  ---  check the face counterclockwise next to IEDGE  ---
+*
+   30 CONTINUE
+      IF(IVERT.EQ.KSV(IEDGE)) THEN
+        JFACE=KLF(IEDGE)
+      ELSE 
+        JFACE=KRF(IEDGE)
+      ENDIF
+      CALL VONF3(JFACE,IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      JOR=JORSSS(IV,IX,IY,IZ0,NAME)
+*
+*  ---  check whether IEDGE is a silhouette edge  ---
+*
+      IF(IOR.EQ.1.AND.JOR.EQ.-1) GOTO 40
+*
+*  ---  go to the next edge around IVERT counterclockwise  ---
+*
+      IOR=JOR
+      IFACE=JFACE
+      IF(IVERT.EQ.KSV(IEDGE)) THEN
+        IEDGE=KSCCE(IEDGE)
+      ELSE
+        IEDGE=KECCE(IEDGE)
+      ENDIF
+      IF(IEDGE.EQ.IESTAR) GOTO 700
+           GOTO 30
+*
+*  ---  IEDGE is the next edge on the silhouette  ---
+*
+   40 CONTINUE
+      IF(IVERT.EQ.KSV(IEDGE)) THEN
+        JVERT=KEV(IEDGE)
+      ELSE
+        JVERT=KSV(IEDGE)
+      ENDIF
+      KCNXV(IVERT)=JVERT
+      KCCNXV(JVERT)=IVERT
+      IF(LARGER(JVERT,IRMP,IX,NAME).EQ.1) IRMP=JVERT
+      IF(JVERT.EQ.IVSTAR) GOTO 100
+      IVERT=JVERT
+          GOTO 20
+*
+  100 CONTINUE
+      RETURN
+  700 CONTINUE
+      WRITE(6,710) IVERT,IESTAR
+  710 FORMAT('Error in SHADOW: No silhouette edge.'/
+     +       'IVERT,IESTAR =',2I10)
+      STOP
+      END
+*
+*
+      SUBROUTINE COMTAN(KCNXV,KCCNXV,IRMP1,LMP2,IX,IY,
+     +  NAME,IVTAN,JVTAN)
+* ------------------------------------------------------------ *
+*                                                              *
+*  Find the upper common tangent line of the two convex hulls  *
+*                                                              *
+*    IVTAN and JVTAN are the points of contact of the two      *
+*    convex hulls with the common tangent line                 *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KCNXV(1),KCCNXV(1)
+      DIMENSION IX(1),IY(1),NAME(1)
+*
+      IVNOW=IRMP1
+      JVNOW=LMP2
+*
+*  ---  move the left vertex counterclockwise  ---
+*
+   10 CONTINUE
+      IMOVE=0
+   11 CONTINUE
+      IVNEXT=KCCNXV(IVNOW)
+      IF(ITLEFT(JVNOW,IVNOW,IVNEXT,IX,IY,NAME).EQ.1) GOTO 20
+      IMOVE=IMOVE+1
+      IVNOW=IVNEXT
+           GOTO 11
+*
+*  ---  move the right vertex clockwise  ---
+*
+   20 CONTINUE
+      JMOVE=0
+   21 CONTINUE
+      JVNEXT=KCNXV(JVNOW)
+      IF(ITLEFT(IVNOW,JVNOW,JVNEXT,IX,IY,NAME).EQ.0) GOTO 30
+      JMOVE=JMOVE+1
+      JVNOW=JVNEXT
+           GOTO 21
+*
+*  ---  check whether the tangent points have been reached  ---
+*
+   30 CONTINUE
+      IF(IMOVE.NE.0.OR.JMOVE.NE.0) GOTO 10
+      IVTAN=IVNOW
+      JVTAN=JVNOW
+      RETURN
+      END
+*
+*
+      SUBROUTINE GCYLIN(IVSTAR,JVSTAR,IX,IY,IZ,NAME,      
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KWV2,KHULNV,KHULPV,KECOLO,KWE2,KFCOLO,KWF2)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Wrap the two convex hulls by a cylindrical sequence     *
+*      of triangular faces                                     *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION KWV2(1),KHULNV(1),KHULPV(1)
+      DIMENSION KECOLO(1),KFCOLO(1)
+      DIMENSION KWE2(1),KWF2(1)
+* --------------------------------------------------------------
+*
+*   KECOLO(I)  color of the I-th edge
+*   KFCOLO(I)  color of the I-th face
+*
+*   The meanings of the colors are as follows.
+*
+*        -1    to be deleted
+*         0    not yet judged
+*         1    to remain
+*         2    on the boundary between the -1 area and 1 area
+*         3    new element
+*
+* --------------------------------------------------------------
+      DIMENSION IVLIST(4),JVLIST(4)
+*
+*  ---  clear all the colors  ---
+*           
+      CALL CCLEAR(IVSTAR,KHULNV,KHULPV,KECOLO,KFCOLO,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+*
+      CALL CCLEAR(JVSTAR,KHULNV,KHULPV,KECOLO,KFCOLO,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+*
+*  ---  generate the first base edge  ---
+*
+      MBASEE=KNEWE(KPARA,KSV)
+      KSV(MBASEE)=IVSTAR
+      KEV(MBASEE)=JVSTAR
+      MBESTA=MBASEE
+      KECOLO(MBASEE)=3
+      IVNOW=IVSTAR
+      JVNOW=JVSTAR
+      IEPREV=0
+      JEPREV=0
+*
+*  ---  find the silhouette edge around IVNOW with
+*       respect to the view point at JVNOW          ---
+*
+   20 CONTINUE 
+      IVLIST(4)=JVNOW
+      IF(IEPREV.EQ.0) THEN
+        IESTAR=KVE(IVNOW)
+      ELSE
+        IESTAR=IEPREV
+      ENDIF
+      IF(IVNOW.EQ.KSV(IESTAR)) THEN
+        IFACE1=KLF(IESTAR)
+        IFACE2=KRF(IESTAR)
+      ELSE
+        IFACE1=KRF(IESTAR)
+        IFACE2=KLF(IESTAR)
+      ENDIF
+      CALL VONF3(IFACE1,IVLIST,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      IORI1=JORSSS(IVLIST,IX,IY,IZ,NAME)
+      IENOW=IESTAR
+*
+   22 CONTINUE
+      CALL VONF3(IFACE2,IVLIST,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      IORI2=JORSSS(IVLIST,IX,IY,IZ,NAME)
+      IF(IORI1.EQ.1.AND.IORI2.EQ.-1) GOTO 30
+*
+*  ---  next edge around IVNOW clockwise  ---
+*
+      IF(IVNOW.EQ.KSV(IENOW)) THEN
+        IENOW=KSCE(IENOW)
+      ELSE
+        IENOW=KECE(IENOW)
+      ENDIF
+      IF(IENOW.EQ.IESTAR) GOTO 700
+      IORI1=IORI2
+      IFACE1=IFACE2
+      IF(IVNOW.EQ.KSV(IENOW)) THEN
+        IFACE2=KRF(IENOW)
+      ELSE
+        IFACE2=KLF(IENOW)
+      ENDIF 
+      GOTO 22 
+* 
+*  ---  IENOW is the silhouette edge around IVNOW  ---
+*
+*  ---  find the silhouette edge around JVNOW with
+*       respect to the view point at IVNOW          ---
+*
+   30 CONTINUE
+      JVLIST(4)=IVNOW
+      IF(JEPREV.EQ.0) THEN
+        JESTAR=KVE(JVNOW)
+      ELSE
+        JESTAR=JEPREV
+      ENDIF
+      IF(JVNOW.EQ.KSV(JESTAR)) THEN
+        JFACE1=KRF(JESTAR)
+        JFACE2=KLF(JESTAR)
+      ELSE
+        JFACE1=KLF(JESTAR)
+        JFACE2=KRF(JESTAR)
+      ENDIF
+      CALL VONF3(JFACE1,JVLIST,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      JORI1=JORSSS(JVLIST,IX,IY,IZ,NAME)
+      JENOW=JESTAR
+   32 CONTINUE
+      CALL VONF3(JFACE2,JVLIST,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      JORI2=JORSSS(JVLIST,IX,IY,IZ,NAME)
+      IF(JORI1.EQ.1.AND.JORI2.EQ.-1) GOTO 40
+*
+*  ---  next edge around JVNOW counterclockwise ---
+*
+      IF(JVNOW.EQ.KSV(JENOW)) THEN
+        JENOW=KSCCE(JENOW)
+      ELSE
+        JENOW=KECCE(JENOW)
+      ENDIF
+      IF(JENOW.EQ.JESTAR) GOTO 701
+      JORI1=JORI2
+      JFACE1=JFACE2
+      IF(JVNOW.EQ.KSV(JENOW)) THEN
+        JFACE2=KLF(JENOW)
+      ELSE
+        JFACE2=KRF(JENOW)
+      ENDIF
+          GOTO 32
+*
+*  ---  select the higher silhouette edge  ---
+*
+   40 CONTINUE
+      IVLIST(1)=JVNOW
+      IVLIST(2)=IVNOW
+      IF(JVNOW.EQ.KSV(JENOW)) THEN
+        IVLIST(3)=KEV(JENOW)
+      ELSE
+        IVLIST(3)=KSV(JENOW)
+      ENDIF
+      IF(IVNOW.EQ.KSV(IENOW)) THEN
+        IVLIST(4)=KEV(IENOW)
+      ELSE
+        IVLIST(4)=KSV(IENOW)
+      ENDIF
+      IF(JORSSS(IVLIST,IX,IY,IZ,NAME).EQ.-1) GOTO 50
+*
+*  ---  IENOW is higher than JENOW  ---
+*
+   41 CONTINUE
+      IPROG=1
+      KECOLO(IENOW)=2
+      IVNOW=IVLIST(4)
+           GOTO 60
+*
+*  ---  JENOW is higher than IENOW  ---
+*
+   50 CONTINUE
+      IPROG=0
+      KECOLO(JENOW)=2
+      JVNOW=IVLIST(3)
+           GOTO 60
+*
+*  ---  generate the new triangular face  ---
+*
+   60 CONTINUE
+      NEWF=KNEWF(KPARA,KFE)
+      KFCOLO(NEWF)=3
+      IF(IVNOW.EQ.IVSTAR.AND.JVNOW.EQ.JVSTAR) THEN
+        NEWE=MBESTA
+      ELSE
+        NEWE=KNEWE(KPARA,KSV)
+        KECOLO(NEWE)=3
+      ENDIF
+      KLF(NEWE)=NEWF
+      KRF(MBASEE)=NEWF
+      KFE(NEWF)=NEWE
+      KSV(NEWE)=IVNOW
+      KEV(NEWE)=JVNOW
+      IF(IPROG.EQ.1) THEN
+        KSCCE(NEWE)=IENOW
+        KSCE(MBASEE)=IENOW
+        KECE(NEWE)=MBASEE
+        KECCE(MBASEE)=NEWE
+      ELSE
+        KECE(NEWE)=JENOW
+        KECCE(MBASEE)=JENOW
+        KSCCE(NEWE)=MBASEE
+        KSCE(MBASEE)=NEWE
+      ENDIF
+      IF(IVNOW.EQ.IVSTAR.AND.JVNOW.EQ.JVSTAR) GOTO 70
+      MBASEE=NEWE
+      IEPREV=IENOW
+      JEPREV=JENOW
+          GOTO 20
+*
+*  ---  find a face to be deleted in the left convex hull  ---
+*
+   70 CONTINUE
+      IEDGE=KSCE(MBESTA)
+   71 CONTINUE
+      IF(IEDGE.EQ.MBESTA) THEN
+*
+*  ---  the case where all but IVSTAR should be deleted  ---
+*
+        IE=KVE(IVSTAR)
+        IFACE=KRF(IE)
+        CALL DELALL(IVSTAR,IFACE,KWV2,KHULNV,KHULPV,
+     +    KECOLO,KWE2,KFCOLO,KWF2,
+     +    KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+            GOTO 75
+      ENDIF 
+*
+      IF(KECOLO(IEDGE).NE.2) THEN
+      IEDGE=KSCE(IEDGE) 
+          GOTO 71
+      ENDIF
+      IF(KSV(IEDGE).EQ.IVSTAR) THEN
+        IFACE=KLF(IEDGE)
+      ELSE
+        IFACE=KRF(IEDGE)
+      ENDIF
+*
+*  ---  delete non-hull elements in the left convex hull  ---
+*
+      CALL DELETE(IFACE,KWV2,KHULNV,KHULPV,
+     +  KECOLO,KWE2,KFCOLO,KWF2,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+*
+*  ---  find a face to be deleted in the right convex hull  ---
+*
+   75 CONTINUE
+      JEDGE=KECCE(MBESTA)
+   72 CONTINUE
+      IF(JEDGE.EQ.MBESTA) THEN
+*
+*  ---  the case where all but JVSTAR should be deleted  ---
+*
+        JE=KVE(JVSTAR)
+        JFACE=KRF(JE)
+        CALL DELALL(JVSTAR,JFACE,KWV2,KHULNV,KHULPV,
+     +    KECOLO,KWE2,KFCOLO,KWF2,
+     +    KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+            GOTO 80
+      ENDIF 
+*
+      IF(KECOLO(JEDGE).NE.2) THEN
+        JEDGE=KECCE(JEDGE)
+          GOTO 72
+      ENDIF
+      IF(KSV(JEDGE).EQ.JVSTAR) THEN
+        JFACE=KRF(JEDGE)
+      ELSE
+        JFACE=KLF(JEDGE)
+      ENDIF
+*
+*  ---  delete non-hull elements in the right convex hull  ---
+*
+      CALL DELETE(JFACE,KWV2,KHULNV,KHULPV,
+     +  KECOLO,KWE2,KFCOLO,KWF2,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+*
+*  ---  update the pointers  ---
+*
+   80 CONTINUE
+      IEDGE=MBESTA
+   81 CONTINUE
+      IV=KSV(IEDGE)
+      JV=KEV(IEDGE)
+      KVE(IV)=IEDGE
+      KVE(JV)=IEDGE
+      IF(KECOLO(KSCE(IEDGE)).EQ.3) THEN
+        NEDGE=KSCE(IEDGE)
+        JENOW=KECCE(IEDGE)
+        IF(KSV(JENOW).EQ.JV) THEN
+          KSCE(JENOW)=IEDGE
+          KECCE(JENOW)=NEDGE
+          KRF(JENOW)=KRF(IEDGE)
+        ELSE
+          KECE(JENOW)=IEDGE
+          KSCCE(JENOW)=NEDGE
+          KLF(JENOW)=KRF(IEDGE)
+        ENDIF
+      ELSE
+        NEDGE=KECCE(IEDGE)
+        IENOW=KSCE(IEDGE)
+        IF(KSV(IENOW).EQ.IV) THEN
+          KSCCE(IENOW)=IEDGE
+          KECE(IENOW)=NEDGE
+          KLF(IENOW)=KRF(IEDGE)
+        ELSE
+          KSCE(IENOW)=NEDGE
+          KECCE(IENOW)=IEDGE
+          KRF(IENOW)=KRF(IEDGE)
+        ENDIF
+      ENDIF
+      IF(NEDGE.EQ.MBESTA) GOTO 90
+      IEDGE=NEDGE
+          GOTO 81
+*
+*  ---  update the list of convex-hull vertices  ---
+*
+   90 CONTINUE
+      IVN=KHULNV(IVSTAR)
+      JVN=KHULNV(JVSTAR)
+      KHULNV(IVSTAR)=JVN
+      KHULNV(JVSTAR)=IVN
+      KHULPV(IVN)=JVSTAR
+      KHULPV(JVN)=IVSTAR
+*
+  100 CONTINUE
+      RETURN
+*
+  700 CONTINUE
+      WRITE(6,710) IVNOW,IESTAR
+  710 FORMAT('Error in GCYLIN: no silhouette edge is found'/
+     +       'IVNOW,IESTAR =',2I8)
+          GOTO 110
+  701 CONTINUE
+      WRITE(6,711) JVNOW,JESTAR
+  711 FORMAT('Error in GCYLIN: no silhouette edge is found'/
+     +       'JVNOW,JESTAR =',2I8)
+*
+  110 CONTINUE
+      STOP
+      END
+*
+*
+      SUBROUTINE CCLEAR(IVERT,KHULNV,KHULPV,KECOLO,KFCOLO,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Clear the colors of all the elements belonging to       *
+*      the same convex hull as IVERT                           *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KHULNV(1),KHULPV(1),KECOLO(1),KFCOLO(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+*
+      IV=IVERT
+*
+*  ---  clear the edge and face colors  ---
+*
+   10 CONTINUE
+      IESTAR=KVE(IV)
+      IE=IESTAR
+      IF(IV.EQ.KSV(IE)) THEN
+        IFACE=KRF(IE)
+      ELSE
+        IFACE=KLF(IE)
+      ENDIF
+   20 CONTINUE
+      KECOLO(IE)=0
+      KFCOLO(IFACE)=0
+      IF(IV.EQ.KSV(IE)) THEN
+        IFACE=KLF(IE)
+        IE=KSCCE(IE)
+      ELSE
+        IFACE=KRF(IE)
+        IE=KECCE(IE)
+      ENDIF
+      IF(IE.NE.IESTAR) GOTO 20
+*
+*  ---  next vertex  ---
+*
+      IV=KHULNV(IV)
+      IF(IV.NE.IVERT) GOTO 10
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE DELETE(IFACE,KVSTAC,KHULNV,KHULPV,
+     +  KECOLO,KESTAC,KFCOLO,KFQUE,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Delete all the elements that do not constitute the      *
+*      merged convex hull                                      *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KVSTAC(1),KHULNV(1),KHULPV(1)
+      DIMENSION KECOLO(1),KESTAC(1),KFCOLO(1),KFQUE(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+*
+      DIMENSION IELIST(3)
+* --------------------------------------------------------------
+*
+*  KVSTAC   stack for the vertices
+*  IVTOP    pointer representing the head element of KVSTAC
+*  KESTAC   stack for the edges
+*  IETOP    pointer representing the head element of KESTAC
+*  KFQUE    queue for the faces
+*  KFTOP    pointer representing the newest element in KFQUE
+*  KFTAIL   pointer representing the oldest element in KFQUE
+*
+* --------------------------------------------------------------
+*
+*  ---  set initial values  ---
+*
+      IFTOP=0
+      IFTAIL=0
+      IVTOP=0
+      IETOP=0
+      KFCOLO(IFACE)=-1
+      IFTOP=IFTOP+1
+      KFQUE(IFTOP)=IFACE
+*
+*  ---  assign colors to faces and edges  ---
+*
+   10 CONTINUE
+      IFTAIL=IFTAIL+1
+      IF(IFTAIL.GT.IFTOP) GOTO 30
+      JF=KFQUE(IFTAIL)
+      CALL EONF3(JF,IELIST,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      DO 20 II=1,3
+      IE=IELIST(II)
+      IF(KECOLO(IE).EQ.2) GOTO 20
+      IF(KECOLO(IE).NE.0) GOTO 20
+      IETOP=IETOP+1
+      IF(IETOP.GT.KPARA(3)) GOTO 700
+      KESTAC(IETOP)=IE
+      KECOLO(IE)=-1
+      IF(JF.EQ.KRF(IE)) THEN
+        KF=KLF(IE)
+      ELSE
+        KF=KRF(IE)
+      ENDIF
+      IF(KFCOLO(KF).EQ.-1) GOTO 20
+      KFCOLO(KF)=-1
+      IFTOP=IFTOP+1
+      IF(IFTOP.GT.KPARA(2)) GOTO 701
+      KFQUE(IFTOP)=KF
+   20 CONTINUE
+          GOTO 10
+*
+*  ---  assign colors to the vertices  ---
+*
+   30 CONTINUE
+      IV=KSV(KFE(IFACE))
+      IVSTAR=IV
+   40 CONTINUE
+      IE=KVE(IV)
+      IESTAR=IE
+   41 CONTINUE
+      IF(KECOLO(IE).NE.-1) GOTO 49
+      IF(IV.EQ.KSV(IE)) THEN
+        IE=KSCCE(IE)
+      ELSE
+        IE=KECCE(IE)
+      ENDIF
+      IF(IE.NE.IESTAR) GOTO 41
+*
+*  ---  all the edges around IV have color -1  ---
+*
+      IVTOP=IVTOP+1
+      KVSTAC(IVTOP)=IV
+*
+*  ---  next vertex  ---
+*
+   49 CONTINUE
+      IV=KHULNV(IV)
+      IF(IV.NE.IVSTAR) GOTO 40
+*
+*  ---  return unused faces  ---
+*
+      DO 50 II=1,IFTOP
+      CALL KFBACK(KFQUE(II),KPARA,KFE)
+   50 CONTINUE
+*
+*  ---  return unused edges  ---
+*
+      IF(IETOP.EQ.0) GOTO 52
+      DO 51 II=1,IETOP
+      CALL KEBACK(KESTAC(II),KPARA,KSV)
+   51 CONTINUE
+*
+*  ---  delete unused vertices  ---
+*
+   52 CONTINUE
+      IF(IVTOP.EQ.0) GOTO 100
+      DO 53 II=1,IVTOP
+      IVERT=KVSTAC(II)
+      INV=KHULNV(IVERT)
+      IPV=KHULPV(IVERT)
+      KHULNV(IPV)=INV
+      KHULPV(INV)=IPV
+   53 CONTINUE
+*
+  100 CONTINUE
+      RETURN
+*
+  700 CONTINUE
+      WRITE(6,710) IETOP
+  710 FORMAT('Error in DELETE: Edge stack overflows.'/
+     +       'IETOP =',I10)
+          GOTO 110
+  701 CONTINUE
+      WRITE(6,711) IFTOP
+  711 FORMAT('Error in DELETE: Face stack overflows.'/
+     +         'IFTOP =',I10)
+*
+  110 CONTINUE
+      STOP
+      END
+*
+*
+      SUBROUTINE DELALL(IVSTAR,IFACE,KVSTAC,KHULNV,KHULPV,
+     +  KECOLO,KESTAC,KFCOLO,KFQUE,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Delete all the elements except for the vertex IVSTAR    *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KVSTAC(1),KHULNV(1),KHULPV(1)
+      DIMENSION KECOLO(1),KESTAC(1),KFCOLO(1),KFQUE(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+*
+      DIMENSION IELIST(3)
+* --------------------------------------------------------------
+*
+*  KVSTAC   stack for the vertices
+*  IVTOP    pointer representing the head element of KVSTAC
+*  KESTAC   stack for the edges
+*  IETOP    pointer representing the head element of KESTAC
+*  KFQUE    queue for the faces
+*  KFTOP    pointer representing the newest element in KFQUE
+*  KFTAIL   pointer representing the oldest element in KFQUE
+*
+* --------------------------------------------------------------
+*
+*  ---  set initial values  ---
+*
+      IFTOP=0
+      IFTAIL=0
+      IVTOP=0
+      IETOP=0
+      KFCOLO(IFACE)=-1
+      IFTOP=IFTOP+1
+      KFQUE(IFTOP)=IFACE
+*
+*  ---  assign colors to faces and edges  ---
+*
+   10 CONTINUE
+      IFTAIL=IFTAIL+1
+      IF(IFTAIL.GT.IFTOP) GOTO 30
+      JF=KFQUE(IFTAIL)
+      CALL EONF3(JF,IELIST,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)
+      DO 20 II=1,3
+      IE=IELIST(II)
+      IF(KECOLO(IE).EQ.2) GOTO 20
+      IF(KECOLO(IE).NE.0) GOTO 20
+      IETOP=IETOP+1
+      IF(IETOP.GT.KPARA(3)) GOTO 700
+      KESTAC(IETOP)=IE
+      KECOLO(IE)=-1
+      IF(JF.EQ.KRF(IE)) THEN
+        KF=KLF(IE)
+      ELSE
+        KF=KRF(IE)
+      ENDIF
+      IF(KFCOLO(KF).EQ.-1) GOTO 20
+      KFCOLO(KF)=-1
+      IFTOP=IFTOP+1
+      IF(IFTOP.GT.KPARA(2)) GOTO 701
+      KFQUE(IFTOP)=KF
+   20 CONTINUE
+          GOTO 10
+*
+*  ---  assign colors to the vertices  ---
+*
+   30 CONTINUE
+      IV=KHULNV(IVSTAR)
+   31 CONTINUE
+      IVTOP=IVTOP+1
+      KVSTAC(IVTOP)=IV
+*
+*  ---  next vertex  ---
+*
+      IV=KHULNV(IV)
+      IF(IV.NE.IVSTAR) GOTO 31
+*
+*  ---  return unused faces  ---
+*
+      DO 50 II=1,IFTOP
+      CALL KFBACK(KFQUE(II),KPARA,KFE)
+   50 CONTINUE
+*
+*  ---  return unused edges  ---
+*
+      IF(IETOP.EQ.0) GOTO 52
+      DO 51 II=1,IETOP
+      CALL KEBACK(KESTAC(II),KPARA,KSV)
+   51 CONTINUE
+*
+*  ---  delete unused vertices  ---
+*
+   52 CONTINUE
+      IF(IVTOP.EQ.0) GOTO 100
+      DO 53 II=1,IVTOP
+      IVERT=KVSTAC(II)
+      INV=KHULNV(IVERT)
+      IPV=KHULPV(IVERT)
+      KHULNV(IPV)=INV
+      KHULPV(INV)=IPV
+   53 CONTINUE
+*
+  100 CONTINUE
+      RETURN
+*
+  700 CONTINUE
+      WRITE(6,710) IETOP
+  710 FORMAT('Error in DELETE: Edge stack overflows.'/
+     +       'IETOP =',I10)
+          GOTO 110
+  701 CONTINUE
+      WRITE(6,711) IFTOP
+  711 FORMAT('Error in DELETE: Face stack overflows.'/
+     +         'IFTOP =',I10)
+*
+  110 CONTINUE
+      STOP
+      END
+      SUBROUTINE EXADD(LONGA,LONGB,LONGC)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Exact addition of variable-length integers              *
+*                                                              *
+*                     LONGC = LONGA + LONGB                    *
+*                                                              *
+*      LONG(1)  length of the array LONG for a long integer    *
+*      LONG(2)  sign of the integer represented in LONG        *
+*      LONG(K)  K=3,4,...,LONG(1); absolute values divided     *
+*               into thirty-bit integers                       *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION LONGA(1),LONGB(1),LONGC(1)
+      DATA LBASE/1073741824/
+* --------------------------------------------------------------
+*
+*          LBASE=2**30
+*
+* --------------------------------------------------------------
+*
+      N=LONGA(1)
+      IF(LONGB(1).NE.N) GOTO 700
+      LONGC(1)=N
+*
+*  ---  check whether LONGA or LONGB is 0  ---
+*
+      IF(LONGA(2).EQ.0) THEN
+        DO 10 I=2,N
+        LONGC(I)=LONGB(I)
+   10   CONTINUE
+          GOTO 100
+      ELSEIF(LONGB(2).EQ.0) THEN
+        DO 20 I=2,N
+        LONGC(I)=LONGA(I)
+   20   CONTINUE
+          GOTO 100
+      ENDIF
+*
+*  ---  check whether LONGA and LONGB are of the same sign  ---
+*
+      IF(LONGA(2)*LONGB(2).EQ.-1) GOTO 50
+*
+*  ---  two numbers with the same sign  ---
+*
+      LONGC(2)=LONGA(2)
+      ICARRY=0
+      DO 30 II=3,N
+      IVAL=LONGA(II)+LONGB(II)+ICARRY
+      ICARRY=IVAL/LBASE
+      LONGC(II)=MOD(IVAL,LBASE)
+   30 CONTINUE
+          GOTO 100
+*
+*  ---  two numbers with different signs  ---
+*
+   50 CONTINUE
+* 
+*  ---  compare the absolute values  ---
+*
+      DO 51 II=N,3,-1
+      IF(LONGA(II).GT.LONGB(II)) GOTO 60
+      IF(LONGB(II).GT.LONGA(II)) GOTO 70
+   51 CONTINUE
+*
+*  ---  The absolute values are the same ---
+*
+      LONGC(2)=0
+      DO 52 II=3,N
+      LONGC(II)=0
+   52 CONTINUE
+          GOTO 100
+*
+*  ---  The absolute value of LONGA is larger  ---
+*  ---  than the absolute value of LONGB       ---
+*
+   60 CONTINUE
+      LONGC(2)=LONGA(2)
+      ICARRY=0
+      DO 61 II=3,N
+      KVAL=LONGA(II)-LONGB(II)-ICARRY
+      IF(KVAL.LT.0) THEN
+       ICARRY=1
+       KVAL=KVAL+LBASE
+      ELSE
+       ICARRY=0
+      ENDIF
+      LONGC(II)=KVAL
+   61 CONTINUE
+          GOTO 100
+*
+*  ---  The absolute value of LONGB is larger  ---
+*  ---  than the absolute value of LONGA       ---
+*
+   70 CONTINUE
+      LONGC(2)=LONGB(2)
+      ICARRY=0
+      DO 71 II=3,N
+      KVAL=LONGB(II)-LONGA(II)-ICARRY
+      IF(KVAL.LT.0) THEN
+       ICARRY=1
+       KVAL=KVAL+LBASE
+      ELSE
+       ICARRY=0
+      ENDIF
+      LONGC(II)=KVAL
+   71 CONTINUE
+          GOTO 100
+*
+  100 CONTINUE
+      RETURN
+*
+*  ---  error message  ---
+* 
+  700 CONTINUE
+      WRITE(6,701) LONGA(1),LONGB(1)
+  701 FORMAT(' Error in EXADD: The integer sizes do not match.'/
+     + '  LONGA: ',I3,' words,    LONGB: ',I3,' words')
+      STOP    
+*
+      END
+*
+*
+      SUBROUTINE EXSUB(LONGA,LONGB,LONGC) 
+* ------------------------------------------------------------ *
+*                                                              *
+*      Exact subtraction of variable-length integers           *
+*                                                              *
+*                     LONGC = LONGA - LONGB                    *
+*                                                              *
+* -------------------------------------------------------------*
+      DIMENSION LONGA(1),LONGB(1),LONGC(1)
+*   
+      IF(LONGB(2).EQ.0) THEN
+        DO 10 I=1,LONGA(1)
+        LONGC(I)=LONGA(I)
+   10   CONTINUE
+      ELSE
+        LONGB(2)=(-1)*LONGB(2)
+        CALL EXADD(LONGA,LONGB,LONGC)
+        LONGB(2)=(-1)*LONGB(2)
+      ENDIF
+      RETURN
+      END
+*
+*
+      SUBROUTINE EXMULT(LONGA,LONGB,LONGC)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Exact multiplication of variable-length integers        *
+*                                                              * 
+*                      LONGC = LONGA * LONGB                   *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION LONGA(1),LONGB(1),LONGC(1)
+      DATA LBASE/1073741824/, LHBASE/32768/
+* --------------------------------------------------------------
+*
+*          LBASE=2**30,  LHBASE=2**15
+*
+* --------------------------------------------------------------
+*
+*   ---  set the initial values  ---
+*
+      N=LONGA(1)
+      IF(LONGB(1).NE.N) GOTO 700
+      LONGC(1)=N
+      M=(N-2)*2
+      LONGC(2)=LONGA(2)*LONGB(2)
+*
+*  check whether LONGC is 0  ---
+*
+      IF(LONGC(2).EQ.0) THEN
+        DO 10 II=3,N
+        LONGC(II)=0
+   10   CONTINUE
+          GOTO 100
+      ENDIF
+*
+      ICARRY=0
+*
+*  ---  larger loop (multiplication)  ---
+*
+      DO 20 II=1,M
+*
+      KVAL=ICARRY
+      JCARRY=0
+*
+*  ---  smaller loop (compute the II-th half-word integer)  ---
+*
+      DO 30 JJ=1,II
+*
+      KK=II-JJ+1
+      KVAL=KVAL+LHALF(LONGA,JJ)*LHALF(LONGB,KK)
+      IF(KVAL.GE.LBASE) THEN
+       JCARRY=JCARRY+1
+       KVAL=KVAL-LBASE
+      ENDIF
+*
+   30 CONTINUE
+*
+      ICARRY=JCARRY*LHBASE+KVAL/LHBASE
+      KVAL=MOD(KVAL,LHBASE)
+      IF(MOD(II,2).EQ.1) THEN
+       LONGC((II+1)/2+2)=KVAL
+      ELSE
+       LONGC(II/2+2)=LONGC(II/2+2)+KVAL*LHBASE
+      ENDIF
+*
+   20 CONTINUE
+*
+  100 CONTINUE
+      RETURN 
+*
+*  ---  error message  ---
+*
+  700 CONTINUE
+      WRITE(6,701) LONGA(1),LONGB(1)
+  701 FORMAT(' Error in EXMULT:',
+     +       ' The integer sizes do not match.'/
+     + '  LONGA: ',I3,' words,    LONGB: ',I3,' words')
+      STOP    
+*
+      END
+*
+*
+      FUNCTION LHALF(LONG,I)
+* -------------------------------------------------------------- *
+*                                                                *
+*          Extract the I-th half-word integer of the             *
+*          variable-length integer LONG                          *
+*                                                                *
+* -------------------------------------------------------------- *
+      DIMENSION LONG(1)
+      DATA LHBASE/32768/
+*
+      M=(I+1)/2
+      IF(M.LE.0.OR.M.GT.LONG(1)-2)  GOTO 700
+      IF(MOD(I,2).EQ.1) THEN
+       LHALF=MOD(LONG(M+2),LHBASE)
+      ELSE
+       LHALF=LONG(M+2)/LHBASE
+      ENDIF
+*
+  100 CONTINUE
+      RETURN
+*
+*  ---  error message  ---
+*
+  700 CONTINUE
+      WRITE(6,701) I
+  701 FORMAT(' Error in LHALF: Integer I is out of range.',
+     +       ' I = ',I5)
+      STOP
+      END
+*
+*
+      FUNCTION FLOATL(LONG)
+* ------------------------------------------------------------ *
+*                                                              *
+*     convert a variable-length integer into a floating-       *
+*     point number                                             *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION LONG(1)
+      DATA BASE/1073741824.0/
+*
+      VAL=0.0
+      DO 10 I=3,LONG(1)
+      VAL=VAL+FLOAT(LONG(I))*(BASE**(I-3))
+   10 CONTINUE
+      FLOATL=VAL*LONG(2)
+      RETURN
+      END
+*
+*
+      SUBROUTINE LTRANS(IA,LONG,N)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Convert a single-precision integer IA into              *
+*      variable-length integer LONG, which uses N              *
+*      words to represent an integer                           *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION LONG(1)
+      DATA LBASE/1073741824/
+* --------------------------------------------------------------
+*
+*      LBASE = 2**30
+*
+* --------------------------------------------------------------
+*
+*  ---  store the length of the array LONG  ---
+*
+      IF(N.LE.3) GOTO 700
+      LONG(1)=N
+*
+*  ---  store the sign of the integer  ---
+*
+      IF(IA.GT.0) THEN
+        LONG(2)=1
+      ELSEIF(IA.EQ.0) THEN
+        LONG(2)=0
+      ELSE
+        LONG(2)=-1
+      ENDIF
+*
+*  ---  store the absolute value of the integer  ---
+*
+      IB=IABS(IA)
+      IC=IB/LBASE
+      IF(IC.EQ.1) IB=IB-LBASE
+      LONG(3)=IB
+      LONG(4)=IC
+      IF(N.LE.4) GOTO 100
+      DO 10 I=5,N 
+      LONG(I)=0
+   10 CONTINUE
+*
+  100 CONTINUE
+      RETURN
+  700 CONTINUE
+      WRITE(6,701) N
+  701 FORMAT('Error in LTRANS: N should be greater than 3.'/
+     +       'Present N is',I3)
+          GOTO 100
+      END
+*
+*
+      SUBROUTINE LTRANF(A,LONG,N)
+* ------------------------------------------------------------ *
+*                                                              *
+*    translate a floating-point number into a varialbe-        *
+*    length integer                                            *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION LONG(1)
+      DATA BASE/1073741824.0/
+*
+*  ---  set the length of the array  ---
+*
+      LONG(1)=N
+*
+*  ---  set the sign LONG(2) and the absolute value B of A  ---
+*
+      IF(A.GT.0.0) THEN
+        LONG(2)=1
+        B=A
+      ELSEIF(A.LT.0.0) THEN
+        LONG(2)=-1
+        B=-A
+      ELSE
+        LONG(2)=0
+        DO 10 I=3,N
+        LONG(I)=0
+   10   CONTINUE
+          GOTO 100
+      ENDIF
+*
+*  ---  compute the minimum size M of the array LONG to
+*       represent the integer part of the value B        --- 
+*
+      C=B
+      M=3
+   20 CONTINUE
+      IF(C.LT.BASE) GOTO 30
+      C=C/BASE
+      M=M+1
+          GOTO 20
+*
+*  ---  put the absolute value B into the array LONG  ---
+*
+   30 CONTINUE
+      IF(M.GT.N) GOTO 700
+      LONG(M)=IFIX(C)
+      IF(M.EQ.3) GOTO 40
+      DO 31 I=M-1,3,-1
+      B=B-FLOAT(IFIX(C))*(BASE**(I-2))
+      C=B/(BASE**(I-3))
+      LONG(I)=IFIX(C)
+   31 CONTINUE
+*
+   40 CONTINUE
+      IF(M.EQ.N) GOTO 100
+      DO 41 I=M+1,N
+      LONG(I)=0
+   41 CONTINUE
+*
+  100 CONTINUE
+      RETURN
+* 
+  700 CONTINUE
+      WRITE(6,710) A,N
+  710 FORMAT('Error in LTRANF: A is too large.'/
+     +       ' A, N =',E30.15,I3)
+      STOP
+      END
+      FUNCTION ITLEFT(IV,JV,KV,IX,IY,NAME)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Check whether the three points IV, JV and KV form       *
+*      a left-trun corner                                      *
+*                                                              *
+*           ITLEFT = 1 if they form a left-trun corner         *
+*                  = 0 otherwise                               *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1),NAME(1)
+      DIMENSION ILIST(3),JLIST(3),IA1(3),IA2(3)
+* 
+      ILIST(1)=IV
+      ILIST(2)=JV
+      ILIST(3)=KV
+      CALL SORTBN(3,ILIST,NAME,JLIST,ICHANG)
+      IA1(1)=IX(JLIST(1))
+      IA1(2)=IX(JLIST(2))
+      IA1(3)=IX(JLIST(3))
+      IA2(1)=IY(JLIST(1))
+      IA2(2)=IY(JLIST(2))
+      IA2(3)=IY(JLIST(3))
+*
+      ISIGN=ISD1SS(IA1,IA2)
+      IF(ISIGN.EQ.1) THEN
+        ITLEFT=1
+          GOTO 100
+      ELSEIF(ISIGN.EQ.-1) THEN
+        ITLEFT=0
+          GOTO 100
+      ENDIF
+*
+*  ---  degenerate case 1  ---
+*
+      IA1(1)=IY(JLIST(2))
+      IA1(2)=IY(JLIST(3))
+      ISIGN=(-1)*ISD1S(IA1)
+      IF(ISIGN.EQ.1) THEN
+        ITLEFT=1
+          GOTO 100
+      ELSEIF(ISIGN.EQ.-1) THEN
+        ITLEFT=0
+          GOTO 100
+      ENDIF
+*
+*  ---  degenerate case 2  ---
+*
+      IA1(1)=IY(JLIST(1))
+      IA1(2)=IY(JLIST(3))
+      ISIGN=ISD1S(IA1)
+      IF(ISIGN.EQ.1) THEN
+        ITLEFT=1
+          GOTO 100
+      ELSEIF(ISIGN.EQ.-1) THEN
+        ITLEFT=0
+          GOTO 100
+      ENDIF
+*
+*  ---  degenerate case 3  ---
+*
+      IA1(1)=IX(JLIST(2))
+      IA1(2)=IX(JLIST(3))
+      ISIGN=ISD1S(IA1)
+      IF(ISIGN.EQ.1) THEN
+        ITLEFT=1
+          GOTO 100
+      ELSEIF(ISIGN.EQ.-1) THEN
+        ITLEFT=0
+          GOTO 100
+      ENDIF
+*
+*  ---  degenerate case 4  ---
+*
+      ITLEFT=0
+*
+  100 CONTINUE
+      IF(ICHANG.EQ.-1) ITLEFT=1-ITLEFT
+      RETURN
+      END
+*
+*
+      SUBROUTINE SORTBN(NOFP,ILIST,NAME,JLIST,ICHANG)
+* ------------------------------------------------------------ *
+*                                                              *
+*    Sort ILIST with the key NAME, and store the result into   *
+*    JLIST.  Also set                                          *
+*                                                              *
+*      ICHANG =  1  if JLIST is an even permutation of ILIST   * 
+*             = -1  otherwise                                  *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION ILIST(1),JLIST(1),NAME(1)
+      DO 10 I=1,NOFP
+      JLIST(I)=ILIST(I)
+   10 CONTINUE
+      ICHANG=1
+      DO 20 II=NOFP-1,1,-1
+      DO 21 JJ=1,II
+      IF(NAME(JLIST(JJ)).GT.NAME(JLIST(JJ+1))) THEN
+        JTEMP=JLIST(JJ)
+        JLIST(JJ)=JLIST(JJ+1)
+        JLIST(JJ+1)=JTEMP
+        ICHANG=(-1)*ICHANG
+      ENDIF
+   21 CONTINUE
+   20 CONTINUE
+      RETURN
+      END
+*
+*
+      FUNCTION ISD1S(IA)
+* ------------------------------------------------------------ *
+*                                                              *
+*        Compute the sign of the determinant of the form       *
+*                                                              *
+*                       1  IA(1)                               *
+*                       1  IA(2)                               *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IA(1)
+      IF(IA(2).GT.IA(1)) THEN
+        ISD1S=1
+      ELSEIF(IA(1).GT.IA(2)) THEN
+        ISD1S=-1
+      ELSE
+        ISD1S=0
+      ENDIF
+      RETURN
+      END
+*
+*
+      FUNCTION ISD1SS(IA1,IA2)
+* ------------------------------------------------------------ *
+*                                                              *
+*        Compute the sign of the determinant of the form       *
+*                                                              *
+*                       1  IA1(1)  IA2(1)                      *
+*                       1  IA1(2)  IA2(2)                      *
+*                       1  IA1(3)  IA2(3)                      *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IA1(1),IA2(1)
+      DIMENSION L11(4),L12(4),L21(4),L22(4)
+      DIMENSION LMULT1(4),LMULT2(4),LSUM(4)
+      DATA LENGTH/4/
+* --------------------------------------------------------------
+*
+*       change the matrix in the form
+*           
+*                1          0               0         
+*                0    IA1(2)-IA1(1)   IA2(2)-IA2(1)  
+*                0    IA1(3)-IA1(1)   IA2(3)-IA2(1)   
+*
+*       and generate variable-length expressions  
+*
+* --------------------------------------------------------------
+      IVAL=IA1(2)-IA1(1)
+      CALL LTRANS(IVAL,L11,LENGTH)
+      IVAL=IA1(3)-IA1(1)
+      CALL LTRANS(IVAL,L21,LENGTH)
+      IVAL=IA2(2)-IA2(1)
+      CALL LTRANS(IVAL,L12,LENGTH)
+      IVAL=IA2(3)-IA2(1)
+      CALL LTRANS(IVAL,L22,LENGTH)
+*
+*  ---  compute the determinant  ---
+*
+      CALL EXMULT(L11,L22,LMULT1)
+      CALL EXMULT(L21,L12,LMULT2)
+      CALL EXSUB(LMULT1,LMULT2,LSUM)
+*
+*  ---  determine the sign of the determinant  ---
+*
+      ISD1SS=LSUM(2)
+*
+      RETURN
+      END
+*     
+*
+      FUNCTION JORSSS(IV,IX,IY,IZ,NAME)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Compute the orientation of the four points IV(1),       *
+*      IV(2), IV(3), IV(4) in the sense of symbolic            *
+*      perturbation; it is assumed that all the coordinates    *
+*      are represented in single-precision integers            *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IV(1),IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION JV(4),JJV(3)
+*
+*  ---  reorder the vertices  ---
+*
+      CALL SORTBN(4,IV,NAME,JV,ICHANG)
+*
+*  ---  floating-point acceleration  ---
+*
+      CALL SFILT(JV,IX,IY,IZ,ISIGN)
+      IF(ISIGN.NE.0) GOTO 100
+*
+*  ---  general case  ---
+*
+      ISIGN=JD1SSS(JV,IX,IY,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 1  ---
+*
+      JJV(1)=JV(2)
+      JJV(2)=JV(3)
+      JJV(3)=JV(4)
+      ISIGN=-JSD1SS(JJV,IY,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 2  ---
+*
+      JJV(1)=JV(1)
+      ISIGN=JSD1SS(JJV,IY,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 3  ---
+*
+      JJV(2)=JV(2)
+      ISIGN=-JSD1SS(JJV,IY,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 4  ---
+*
+      JJV(1)=JV(2)
+      JJV(2)=JV(3)
+      ISIGN=JSD1SS(JJV,IX,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 5  ---
+*
+      JJV(1)=JV(3)
+      JJV(2)=JV(4)
+      ISIGN=-JSD1S(JJV,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 6  ---
+*
+      JJV(1)=JV(2)
+      ISIGN=JSD1S(JJV,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 7  ---
+*
+      JJV(1)=JV(1)
+      JJV(2)=JV(3)
+      JJV(3)=JV(4)
+      ISIGN=-JSD1SS(JJV,IX,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 8  ---
+*
+      JJV(1)=JV(1)
+      JJV(2)=JV(4)
+      ISIGN=-JSD1S(JJV,IZ)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 9  ---
+*
+      JJV(1)=JV(1)
+      JJV(2)=JV(2)
+      JJV(3)=JV(4)
+      ISIGN=JSD1SS(JJV,IX,IZ)
+*
+*  ---  degenerate case 10  ---
+*
+      JJV(1)=JV(2)
+      JJV(2)=JV(3)
+      JJV(3)=JV(4)
+      ISIGN=-JSD1SS(JJV,IX,IY)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 11  ---
+*
+      JJV(1)=JV(3)
+      JJV(2)=JV(4)
+      ISIGN=JSD1S(JJV,IY)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 12  ---
+*
+      JJV(1)=JV(2)
+      JJV(2)=JV(4)
+      ISIGN=-JSD1S(JJV,IY)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 13  ---
+*
+      JJV(1)=JV(3)
+      JJV(2)=JV(4)
+      ISIGN=-JSD1S(JJV,IX)
+      IF(ISIGN.EQ.1.OR.ISIGN.EQ.-1) GOTO 100
+*
+*  ---  degenerate case 14  ---
+*
+      ISIGN=1
+*
+  100 CONTINUE
+      JORSSS=ISIGN*ICHANG
+      RETURN
+      END
+*
+*
+      FUNCTION JD1SSS(JV,IX,IY,IZ) 
+* ------------------------------------------------------------ *
+*                                                              *
+*      Compute the sign of the determinant of the matrix       *
+*                                                              *
+*             1  X1  Y1  Z1                                    *
+*             1  X2  Y2  Z2       X2-X1  Y2-Y1  Z2-Z1          *
+*             1  X3  Y3  Z3   =   X3-X1  Y3-Y1  Z3-Z1          *
+*             1  X4  Y4  Z4       X4-X1  Y4-Y1  Z4-Z1          *
+*                                                              *
+*      where all the elements are represented in               *
+*      single-precision integers                               *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION JV(1),IX(1),IY(1),IZ(1)
+      DIMENSION L11(5),L12(5),L13(5)
+      DIMENSION L21(5),L22(5),L23(5)
+      DIMENSION L31(5),L32(5),L33(5)
+      DIMENSION LL1(5),LL2(5),LL3(5),LL4(5),LL5(5),LL6(5)
+      DIMENSION LDUM(5)
+      DATA LENGTH/5/
+*
+      IVAL=IX(JV(2))-IX(JV(1))
+      CALL LTRANS(IVAL,L11,LENGTH)
+      IVAL=IX(JV(3))-IX(JV(1))
+      CALL LTRANS(IVAL,L21,LENGTH)
+      IVAL=IX(JV(4))-IX(JV(1))
+      CALL LTRANS(IVAL,L31,LENGTH)
+      IVAL=IY(JV(2))-IY(JV(1))
+      CALL LTRANS(IVAL,L12,LENGTH)
+      IVAL=IY(JV(3))-IY(JV(1))
+      CALL LTRANS(IVAL,L22,LENGTH)
+      IVAL=IY(JV(4))-IY(JV(1))
+      CALL LTRANS(IVAL,L32,LENGTH)
+      IVAL=IZ(JV(2))-IZ(JV(1))
+      CALL LTRANS(IVAL,L13,LENGTH)
+      IVAL=IZ(JV(3))-IZ(JV(1))
+      CALL LTRANS(IVAL,L23,LENGTH)
+      IVAL=IZ(JV(4))-IZ(JV(1))
+      CALL LTRANS(IVAL,L33,LENGTH)
+*
+      CALL EXMULT(L11,L22,LDUM)
+      CALL EXMULT(LDUM,L33,LL1)
+      CALL EXMULT(L21,L32,LDUM)
+      CALL EXMULT(LDUM,L13,LL2)
+      CALL EXMULT(L31,L12,LDUM)
+      CALL EXMULT(LDUM,L23,LL3)
+      CALL EXMULT(L11,L32,LDUM)
+      CALL EXMULT(LDUM,L23,LL4)
+      CALL EXMULT(L21,L12,LDUM)
+      CALL EXMULT(LDUM,L33,LL5)
+      CALL EXMULT(L31,L22,LDUM)
+      CALL EXMULT(LDUM,L13,LL6)
+*
+      CALL EXADD(LL1,LL2,LDUM)
+      CALL EXADD(LDUM,LL3,LL1)
+      CALL EXSUB(LL1,LL4,LDUM)
+      CALL EXSUB(LDUM,LL5,LL1)
+      CALL EXSUB(LL1,LL6,LDUM)
+*
+      JD1SSS=LDUM(2)
+      RETURN
+      END
+*
+*
+      FUNCTION JSD1SS(JV,IX,IY) 
+* ------------------------------------------------------------ *
+*                                                              *
+*      Compute the sign of the determinant of the matrix       *
+*                                                              *
+*             1  X1  Y1                                        *
+*             1  X2  Y2   =   X2-X1  Y2-Y1                     *
+*             1  X3  Y3       X3-X1  Y3-Y1                     *
+*                                                              *
+*      where all the elements are represented in               *
+*      single-precision integers                               *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION JV(1),IX(1),IY(1)
+      DIMENSION L11(4),L12(4),L21(4),L22(4)
+      DIMENSION LDUM(4)
+      DATA LENGTH/4/
+*
+      IVAL=IX(JV(2))-IX(JV(1))
+      CALL LTRANS(IVAL,L11,LENGTH)
+      IVAL=IX(JV(3))-IX(JV(1))
+      CALL LTRANS(IVAL,L21,LENGTH)
+      IVAL=IY(JV(2))-IY(JV(1))
+      CALL LTRANS(IVAL,L12,LENGTH)
+      IVAL=IY(JV(3))-IY(JV(1))
+      CALL LTRANS(IVAL,L22,LENGTH)
+*
+      CALL EXMULT(L11,L22,LDUM)
+      CALL EXMULT(L12,L21,L11)
+      CALL EXSUB(LDUM,L11,L22)
+*
+      JSD1SS=L22(2)
+      RETURN
+      END
+*
+*
+      FUNCTION JSD1S(JV,IX) 
+* ------------------------------------------------------------ *
+*                                                              *
+*      Compute the sign of the determinant of the matrix       *
+*                                                              *
+*             1  X1                                            *
+*             1  X2   =   X2-X1                                *
+*                                                              *
+*      where X1 and X2 are represented in single-precision     *
+*      integers                                                *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION JV(1),IX(1)
+*
+      IVAL=IX(JV(2))-IX(JV(1))
+      IF(IVAL.GT.0) THEN
+        JSD1S=1
+      ELSEIF(IVAL.LT.0) THEN
+        JSD1S=-1
+      ELSE
+        JSD1S=0
+      ENDIF
+      RETURN
+      END
+      SUBROUTINE HPSORT(NOFP,IX,NAME,MOL)
+* ---------------------------------------------------------------- *
+*                                                                  *
+*                Heap Sort                                         *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      DIMENSION IX(1),NAME(1),MOL(1)
+* ------------------------------------------------------------------
+*
+*   NOFP   number of points to be sorted
+*   IX     key for the sorting
+*   NAME   ordinal number (name) assigned to the points
+*   MOL    sorted list (this area is also used tentatively 
+*          to represent the heap structure)
+*
+* ------------------------------------------------------------------
+*
+*  ---  construct the heap structure in MOL  ---
+*
+      DO 10 I=1,NOFP
+*
+*  ---  add a new element to the heap  ---
+*
+      MOL(I)=I
+      J1=I
+   11 CONTINUE
+      J2=J1/2
+      IF(J2.EQ.0) GOTO 10
+      IF(LARGER(MOL(J1),MOL(J2),IX,NAME).EQ.0) GOTO 10
+      MV=MOL(J1)
+      MOL(J1)=MOL(J2)
+      MOL(J2)=MV
+      J1=J2
+          GOTO 11
+   10 CONTINUE
+*
+*  ---  construct the sorted list in MOL  ---
+*
+      DO 20 I=NOFP,2,-1
+*
+*  ---  extract the largest element from the heap  ---
+*
+      MV=MOL(I)
+      MOL(I)=MOL(1)
+      MOL(1)=MV
+*
+*  ---  reconstruct the heap for the remaining elements  ---
+*
+      J1=1
+   21 CONTINUE
+      J2=2*J1
+      j3=J2+1
+      IF(J2.GE.I) GOTO 20
+      IF(J3.GE.I) THEN
+       JLARGE=J2
+      ELSE
+       IF(LARGER(MOL(J2),MOL(J3),IX,NAME).EQ.1) THEN
+        JLARGE=J2
+       ELSE
+        JLARGE=J3
+       ENDIF
+      ENDIF
+*
+      IF(LARGER(MOL(J1),MOL(JLARGE),IX,NAME).EQ.1) GOTO 20
+      MV=MOL(J1)
+      MOL(J1)=MOL(JLARGE)
+      MOL(JLARGE)=MV
+      J1=JLARGE
+          GOTO 21
+*
+   20 CONTINUE
+*
+      RETURN
+      END
+*
+*
+      FUNCTION LARGER(IV,JV,IX,NAME)
+* ------------------------------------------------------------ *
+*                                                              *
+*     Check whether the x coordinate of vertex IV is larger    *
+*     than that of JV in the sense of symbolic perturbation    *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),NAME(1)
+*
+      IF(IX(IV).GT.IX(JV)) THEN 
+        LARGER=1
+      ELSEIF(IX(IV).LT.IX(JV)) THEN
+        LARGER=0
+      ELSE
+        IF(NAME(IV).GT.NAME(JV)) THEN
+          LARGER=0
+        ELSE
+          LARGER=1
+        ENDIF
+      ENDIF
+*
+      RETURN
+      END
+      SUBROUTINE DRAWC2(NOFP,IX,IY,IXYMAX,NOFV,NVLIST)
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          Draw the two-dimensional convex hull                    *
+*                 (construct the ps file 'draw.d')                *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      DIMENSION IX(1),IY(1),NVLIST(1)
+      DATA RADIUS/1.0/
+      OPEN(1,FILE='draw.d')
+*
+      CALL DRSTAR(-IXYMAX,IXYMAX,-IXYMAX,IXYMAX)
+*
+*  ---  plot the input points  ---
+*
+      DO 10 II=1,NOFP
+      CALL DRDOT(IX(II),IY(II),RADIUS)
+   10 CONTINUE
+*
+*  ---  draw the boundary of the convex hull  ---
+*
+      IV=NVLIST(1)
+      IX1=IX(IV)
+      IY1=IY(IV) 
+      DO 20 II=2,NOFV
+      IV=NVLIST(II)
+      IX2=IX(IV)
+      IY2=IY(IV)
+   !   CALL DRLINE(IX1,IY1,IX2,IY2)
+      IX1=IX2
+      IY1=IY2
+   20 CONTINUE
+      IV=NVLIST(1)
+      IX2=IX(IV)
+      IY2=IY(IV)
+   !   CALL DRLINE(IX1,IY1,IX2,IY2)
+*
+      CALL DRCOMP
+*
+      CLOSE(1)
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRSTAR(IXMIN,IXMAX,IYMIN,IYMAX)
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          Set the initial state of the ps file                    * 
+*                                                                  *
+* ---------------------------------------------------------------- *
+      COMMON /DRAWPA/SCALE
+      DATA IWIDTH/450/,XSHIFT/50.0/,YSHIFT/150.0/ 
+      DATA LWIDTH/0.4/ 
+      IXS=IXMAX-IXMIN 
+      IYS=IYMAX-IYMIN
+      IF(IXS.GE.IYS) THEN
+        MS=IXS
+      ELSE
+        MS=IYS
+      ENDIF  
+      SCALE=FLOAT(IWIDTH)/FLOAT(MS)
+      XMIN=FLOAT(IXMIN)*SCALE
+      YMIN=FLOAT(IYMIN)*SCALE
+      WRITE(1,100) -XMIN+XSHIFT,-YMIN+YSHIFT
+  100 FORMAT(2F10.3,' translate')
+      WRITE(1,101) LWIDTH
+  101 FORMAT(I4,' setlinewidth')
+      RETURN
+      END
+*
+*
+      SUBROUTINE LWIDTH(WIDTH)
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          set the line width                                      *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      WRITE(1,101) WIDTH
+  101 FORMAT(F8.4,' setlinewidth')
+      RETURN 
+      END 	
+*
+*
+      SUBROUTINE DRLINE(JX1,JY1,JX2,JY2,mheight,mwidth)
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          Draw a line from (JX1,JY1) to (JX2,JY2)                 *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      COMMON /DRAWPA/SCALE
+      X=FLOAT(JX1) !*SCALE
+      Y=FLOAT(JY1) !*SCALE
+      WRITE(1,100) X,Y
+  100 FORMAT('newpath ',2F10.3,' moveto')
+      x11=x
+	y11=y 
+ 
+ 
+      X=FLOAT(JX2)!*SCALE
+      Y=FLOAT(JY2)!*SCALE
+      WRITE(1,101) X,Y
+  101 FORMAT('        ',2F10.3,' lineto stroke')
+      x22=x
+	y22=y
+
+
+ !•ÏX‰Á‚¦‚½
+
+
+
+      if(x11.gt.0.and.x11.lt.mwidth.and.y11.gt.0.and.y11.lt.mheight.and.
+     +   x22.gt.0.and.x22.lt.mwidth.and.y22.gt.0.and.y22.lt.mheight)then	
+ 
+      
+      nline=nline+1
+      write(25,9999) nline
+	write(25,9998) x11
+	write(25,9998) y11
+	write(25,9998) x22
+	write(25,9998) Y22
+      write(25,9999) 0
+	
+	else if(x11.ge.0.and.x11.le.mwidth.and.y11.ge.0.
+     +	    and.y11.le.mheight.or.
+     +   x22.ge.0.and.x22.le.mwidth.and.y22.ge.0.and.y22.le.mheight)then	
+	
+
+!     ƒ‚ƒfƒ‹ŠO‚Ì’¼ü‚Ìˆê’[‚ð‹«ŠE•Óã‚ÉˆÚ‚·
+
+        if(y11.gt.mheight) then
+          if (x11.eq.x22) then
+		y11=mheight
+          else
+          y12=mheight
+          x11=(y12-y11)*(x11-x22)/(y11-y22)+x11
+		y11=mheight
+		end if 
+	  linekind = 1
+	  end if
+	  if(y22.gt.mheight) then
+          if (x11.eq.x22) then
+	    y22=mheight
+          else
+          y12=mheight
+          x22=(y12-y11)*(x11-x22)/(y11-y22)+x11
+	    
+	    y22=mheight
+          end if 
+	  linekind=2
+	  end if     
+	  if(y11.lt.0) then
+          if (x11.eq.x22) then
+	    y11=0
+          else
+	    x11=(-y11)*(x11-x22)/(y11-y22)+x11
+	    y11=0	
+		end if
+	  linekind=3
+	  end if
+	  if(y22.lt.0) then
+          if (x11.eq.x22) then
+	    y22=0
+          else
+	    x22=(-y11)*(x11-x22)/(y11-y22)+x11
+	    y22=0	
+		end if		 
+	  linekind=4
+	  end if
+        
+
+
+
+	  if(x11.gt.mwidth) then
+          if (y11.eq.y22) then
+	    x11=mwidth
+          else
+          x12=mwidth
+          y11=(y11-y22)*(x12-x11)/(x11-x22)+y11
+	    x11=mwidth	    
+     		end if 
+	  linekind=5
+	  end if
+        
+	  if(x22.gt.mwidth) then
+          if (y11.eq.y22) then
+	    x22=mwidth
+          else
+	    x12=mwidth
+          y22=(y11-y22)*(x12-x11)/(x11-x22)+y11
+	    x22=mwidth
+	    
+          
+		end if 
+	  linekind=6
+	  end if
+        
+	  if(x11.lt.0) then
+          if (y11.eq.y22) then
+	    x11=0
+		else
+          y11=(y11-y22)*(-x11)/(x11-x22)+y11
+		x11=0
+          
+          end if 
+	  linekind=7
+	  end if
+        
+	  if(x22.lt.0) then
+          if (y11.eq.y22) then
+	    x22=0
+	    else
+          y22=(y11-y22)*(-x11)/(x11-x22)+y11
+		x22=0
+          
+          end if 
+	  linekind=8
+	  end if
+
+      nline=nline+1
+      write(25,9999) nline
+	write(25,9998) x11
+	write(25,9998) y11
+	write(25,9998) x22
+	write(25,9998) Y22
+      write(25,9999) linekind	
+	
+      !‚Q“_‚ª‹«ŠE“à‚É‚È‚¢‚ªA‚»‚Ì’¼ü‚ªƒ‚ƒfƒ‹“à‚ð’Ê‰ß‚·‚é‚Æ‚«	
+
+	!ƒ‚ƒfƒ‹‚Ì‰Eã‚ ‚½‚è‚ð’Ê‰ß‚·‚éü
+	elseif(x11.lt.mwidth.and.y11.gt.mheight.and.x22.gt.mwidth.and.
+     +	   y22.lt.mheight.or.x22.lt.mwidth.and.y22.gt.mheight.and.
+     +	   x11.gt.mwidth.and.y11.lt.mheight) then
+
+      x12=mwidth
+      y12=mheight
+	xx1=(y12-y11)*(x11-x22)/(y11-y22)+x11
+	yy1=(y11-y22)*(x12-x11)/(x11-x22)+y11
+	   if(xx1.lt.x12)then
+         x11=xx1
+	   y11=y12
+	   x22=x12
+	   y22=yy1
+         linekind=9
+         
+	   nline=nline+1
+         write(25,9999) nline
+	   write(25,9998) x11
+	   write(25,9998) y11
+	   write(25,9998) x22
+	   write(25,9998) Y22
+         write(25,9999) linekind	
+	   end if
+
+
+	!ƒ‚ƒfƒ‹‚Ì¶ã‚ ‚½‚è‚ð’Ê‰ß‚·‚éü
+	elseif(x11.gt.0.and.y11.gt.mheight.and.x22.lt.0.and.
+     +	   y22.lt.mheight.or.x22.gt.0.and.y22.gt.mheight.and.
+     +	   x11.lt.0.and.y11.lt.mheight) then
+
+      x12=mwidth
+      y12=mheight
+	xx1=(y12-y11)*(x11-x22)/(y11-y22)+x11
+	yy1=(y11-y22)*(-x11)/(x11-x22)+y11
+	   if(xx1.gt.0)then
+         x11=xx1
+	   y11=y12
+	   x22=0
+	   y22=yy1
+         linekind=10
+         
+	   nline=nline+1
+         write(25,9999) nline
+	   write(25,9998) x11
+	   write(25,9998) y11
+	   write(25,9998) x22
+	   write(25,9998) Y22
+         write(25,9999) linekind	
+	   end if
+
+	!ƒ‚ƒfƒ‹‚Ì¶‰º‚ ‚½‚è‚ð’Ê‰ß‚·‚éü
+	elseif(x11.gt.0.and.y11.lt.0.and.x22.lt.0.and.
+     +	   y22.gt.0.or.x22.gt.0.and.y22.lt.0.and.
+     +	   x11.lt.0.and.y11.gt.0) then
+
+      x12=mwidth
+      y12=mheight
+	xx1=(-y11)*(x11-x22)/(y11-y22)+x11
+	yy1=(y11-y22)*(-x11)/(x11-x22)+y11
+	   if(xx1.gt.0)then
+         x11=0
+	   y11=yy1
+	   x22=xx1
+	   y22=0
+         linekind=11
+         
+	   nline=nline+1
+         write(25,9999) nline
+	   write(25,9998) x11
+	   write(25,9998) y11
+	   write(25,9998) x22
+	   write(25,9998) Y22
+         write(25,9999) linekind	
+	   end if
+		
+	!ƒ‚ƒfƒ‹‚Ì‰E‰º‚ ‚½‚è‚ð’Ê‰ß‚·‚éü
+	elseif(x11.gt.mwidth.and.y11.gt.0.and.x22.lt.mwidth.and.
+     +	   y22.lt.0.or.x22.gt.mwidth.and.y22.gt.0.and.
+     +	   x11.lt.mwidth.and.y11.lt.0) then
+
+      x12=mwidth
+      y12=mheight
+	xx1=(-y11)*(x11-x22)/(y11-y22)+x11
+	yy1=(y11-y22)*(x12-x11)/(x11-x22)+y11
+	   if(xx1.lt.x12)then
+         x11=0
+	   y11=yy1
+	   x22=xx1
+	   y22=0
+         linekind=12
+         
+	   nline=nline+1
+         write(25,9999) nline
+	   write(25,9998) x11
+	   write(25,9998) y11
+	   write(25,9998) x22
+	   write(25,9998) Y22
+         write(25,9999) linekind	
+	   end if	
+	end if
+
+
+9999  format(i5)
+ 9998 format(f25.5)
+      
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRDOT(JX,JY,R)	
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          Draw a dot with radius R centered at (JX,JY)           *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      COMMON /DRAWPA/SCALE
+      X=FLOAT(JX)*SCALE
+      Y=FLOAT(JY)*SCALE
+      WRITE(1,100) X,Y,R 
+  100 FORMAT('newpath ',3F10.3,' 0 360 arc closepath fill')
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRCIRC(JX,JY,JR)	
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          Draw a circle with radius JR centered at (JX,JY)           *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      COMMON /DRAWPA/SCALE
+      X=FLOAT(JX)*SCALE
+      Y=FLOAT(JY)*SCALE
+      R=FLOAT(JR)*SCALE
+      WRITE(1,100) X,Y,R 
+  100 FORMAT('newpath ',3F10.3,' 0 360 arc closepath stroke')
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRARC(JX0,JY0,JR,A1,A2)
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          Draw an arc with the center (JX0,JY0) and radius JR     *
+*             A1 and A2 are start and end angles (degrees)         *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      COMMON /DRAWPA/SCALE
+      X=FLOAT(JX0)*SCALE
+      Y=FLOAT(JY0)*SCALE
+      R=FLOAT(JR)*SCALE
+      WRITE(1,100) X,Y,R,A1,A2
+  100 FORMAT('newpath ',5F10.3,' arc stroke')
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRELLI(X0,Y0,RATIO,THETA,RLONG)
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          Draw an ellipse                                         *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      DEG=3.1416/180.0
+      ST=SIN(THETA)
+      CT=COS(THETA)
+      A11I=RATIO*(CT**2)+ST**2
+      A22I=RATIO*(ST**2)+CT**2
+      A12I=(RATIO-1.0)*CT*ST
+      IX1=A11I*RLONG+X0
+      IY1=A12I*RLONG+Y0
+      DO 10 II=1,360
+      X=RLONG*COS(DEG*II)
+      Y=RLONG*SIN(DEG*II)
+      IX2=A11I*X+A12I*Y+X0
+      IY2=A12I*X+A22I*Y+Y0
+ !     CALL DRLINE(IX1,IY1,IX2,IY2)
+      IX1=IX2
+      IY1=IY2
+   10 CONTINUE
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRCOMP
+* ---------------------------------------------------------------- *
+*                                                                  *
+*          Complete the ps file                                    *
+*                                                                  *
+* ---------------------------------------------------------------- *
+      WRITE(1,100)
+  100 FORMAT('showpage')
+      RETURN
+      END
+****************************************************************
+****************************************************************
+*         Subroutines for making ps files                      *
+****************************************************************
+****************************************************************
+      SUBROUTINE DRSTLE(IXMIN,IXMAX,IYMIN,IYMAX)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Set the environment for drawing the left diagram        *
+*                                                              *
+* ------------------------------------------------------------ *
+      COMMON /DRAWPA/SCALE
+      DATA IWIDTH/200/,XSHIFT/50.0/,YSHIFT/150.0/ 
+      IXS=IXMAX-IXMIN 
+      IYS=IYMAX-IYMIN
+      IF(IXS.GE.IYS) THEN
+        MS=IXS
+      ELSE
+        MS=IYS
+      ENDIF  
+      SCALE=FLOAT(IWIDTH)/FLOAT(MS)
+      XMIN=FLOAT(IXMIN)*SCALE
+      YMIN=FLOAT(IYMIN)*SCALE
+      WRITE(1,100) -XMIN+XSHIFT,-YMIN+YSHIFT
+  100 FORMAT(2F10.3,' translate')
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRSTRI
+* ------------------------------------------------------------ *
+*                                                              *
+*      Set the environment for drawing the left diagram        *
+*                                                              *
+* ------------------------------------------------------------ *
+      COMMON /DRAWPA/SCALE
+      DATA IWIDTH/200/,XSHIFT/50.0/,YSHIFT/150.0/ 
+      DATA GAP/20.0/
+      WRITE(1,100) FLOAT(IWIDTH)+GAP,0.0
+  100 FORMAT(2F10.3,' translate')
+      RETURN
+      END
+*
+*
+      SUBROUTINE CENTPR(EX,EY,EZ,X,Y,Z,XX,YY)
+* ------------------------------------------------------------ *
+*                                                              *
+*     Central projection of point (x,y,z) with respect to      *
+*     the eye at (ex,ey,ez) onto the xy plane                  * 
+*                                                              *
+* ------------------------------------------------------------ *
+      XX=X-Z*(EX-X)/(EZ-Z)
+      YY=Y-Z*(EY-Y)/(EZ-Z)
+      RETURN
+      END
+      SUBROUTINE KINIT(KPARA,KFE,KSV)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Set the initial state of the data structure             *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KPARA(1),KFE(1),KSV(1)
+* --------------------------------------------------------------
+*
+*   KPARA(1)   maximum number of the vertices             
+*   KPARA(2)   manimum number of the faces
+*   KPARA(3)   maximum number of the edges
+*   KPARA(4)   pointer to the list of empty-face cells
+*   KPARA(5)   pointer to the list of empty-edge cells
+*
+* --------------------------------------------------------------
+      IENDF=KPARA(2)
+      IENDE=KPARA(3)
+*
+*  ---  generate the list of empty-face cells  ---
+*
+      DO 10 II=1,IENDF-1
+      KFE(II)=II+1
+   10 CONTINUE
+      KFE(IENDF)=0
+      KPARA(4)=1
+*
+*  ---  generate the list of empty-edge cells  ---
+*
+      DO 20 II=1,IENDE-1
+      KSV(II)=II+1
+   20 CONTINUE
+      KSV(IENDE)=0
+      KPARA(5)=1
+*
+      RETURN
+      END
+*
+*
+      FUNCTION KNEWF(KPARA,KFE)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Fetch a new cell for a face                             *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KPARA(1),KFE(1)
+      IP=KPARA(4)
+      IF(IP.EQ.0) GOTO 700
+      KNEWF=IP
+      KPARA(4)=KFE(IP)
+      RETURN
+*
+  700 CONTINUE
+      WRITE(6,710)
+  710 FORMAT('Error in KNEWF: No more face cell.')
+      STOP
+      END
+*
+*
+      FUNCTION KNEWE(KPARA,KSV)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Fetch a new cell for a face                             *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KPARA(1),KSV(1)
+      IP=KPARA(5)
+      IF(IP.EQ.0) GOTO 700
+      KNEWE=IP
+      KPARA(5)=KSV(IP)
+      RETURN
+*
+  700 CONTINUE
+      WRITE(6,710)
+  710 FORMAT('Error in KNEWE: No more edge cell.')
+      STOP
+      END
+*
+*
+      SUBROUTINE KFBACK(IFACE,KPARA,KFE)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Report a face cell to the list of empty cells           *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KPARA(1),KFE(1)
+      KFE(IFACE)=KPARA(4)
+      KPARA(4)=IFACE
+      RETURN
+      END
+*
+*
+      SUBROUTINE KEBACK(IEDGE,KPARA,KSV)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Report an edge cell to the list of empty cells          *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KPARA(1),KSV(1)
+      KSV(IEDGE)=KPARA(5)
+      KPARA(5)=IEDGE
+      RETURN
+      END
+*
+*
+      SUBROUTINE EONF3(IFACE,IEDGE,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)	
+* ------------------------------------------------------------ *
+*                                                              *
+*      Find the three edges on the triangular face IFACE       *
+*      and put them in IEDGE counterclockwise                  *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IEDGE(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+*
+      JE=KFE(IFACE)
+      IEDGE(1)=JE
+      IF(IFACE.EQ.KRF(JE)) THEN
+        IEDGE(2)=KSCE(JE)
+      ELSE
+        IEDGE(2)=KECE(JE)
+      ENDIF
+      JE=IEDGE(2)
+      IF(IFACE.EQ.KRF(JE)) THEN
+        IEDGE(3)=KSCE(JE)
+      ELSE
+        IEDGE(3)=KECE(JE)
+      ENDIF
+      RETURN
+      END
+*
+*
+      SUBROUTINE VONF3(IFACE,IV,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE)	
+* ------------------------------------------------------------ *
+*                                                              *
+*      Find the three vertices on the triangular face IFACE    *
+*      and put them in IV counterclockwise                     *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IV(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+*
+      IEDGE=KFE(IFACE)
+      IF(IFACE.EQ.KRF(IEDGE)) THEN
+        IV(1)=KEV(IEDGE)
+        IV(2)=KSV(IEDGE)
+        IENEXT=KSCE(IEDGE)
+      ELSE
+        IV(1)=KSV(IEDGE)
+        IV(2)=KEV(IEDGE)
+        IENEXT=KECE(IEDGE)
+      ENDIF
+      IF(IFACE.EQ.KRF(IENEXT)) THEN
+        IV(3)=KSV(IENEXT)
+      ELSE
+        IV(3)=KEV(IENEXT)
+      ENDIF
+      RETURN
+      END
+*
+*
+      SUBROUTINE EFONV(IVERT,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  NOFEF,LISTE,LISTF)	
+* ------------------------------------------------------------ *
+*                                                              *
+*      Find all the edges and the faces incident to IVERT      *
+*                                                              *
+*        LISTE:  list of edges                                 *
+*        LISTF:  list of faces                                 *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION LISTE(1),LISTF(1)
+*
+      IESTAR=KVE(IVERT)
+      NOFEF=0
+      IE=IESTAR
+    1 CONTINUE
+      NOFEF=NOFEF+1
+      LISTE(NOFEF)=IE
+      IF(KSV(IE).EQ.IVERT) THEN
+        LISTF(NOFEF)=KRF(IE)
+        IE=KSCE(IE)
+      ELSE
+        LISTF(NOFEF)=KLF(IE)
+        IE=KECE(IE)
+      ENDIF
+      IF(IE.EQ.IESTAR) GOTO 100
+          GOTO 1
+  100 CONTINUE
+      RETURN
+      END
+*
+*
+      SUBROUTINE VEONF(IFACE,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  NOFVE,LISTV,LISTE)	
+* ------------------------------------------------------------ *
+*                                                              *
+*     Find all the vertices and the edges incident to IFACE    *
+*                                                              *
+*       NOFVE: number of vertices (equivalently of edges)      *
+*       LISTV: list of vertices                                *
+*       LISTE: list of edges                                   *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION LISTV(1),LISTE(1)
+*
+      IESTAR=KFE(IFACE)
+      NOFVE=0
+      IE=IESTAR
+    1 CONTINUE
+      NOFVE=NOFVE+1
+      LISTE(NOFVE)=IE
+      IF(KRF(IE).EQ.IFACE) THEN
+        LISTV(NOFVE)=KSV(IE)
+        IE=KSCE(IE)
+      ELSE
+        LISTV(NOFVE)=KEV(IE)
+        IE=KECE(IE)
+      ENDIF
+      IF(IE.EQ.IESTAR) GOTO 100
+          GOTO 1
+  100 CONTINUE
+      RETURN
+      END
+*
+*
+      subroutine kmonit(NOFP,IX,IY,IZ,NAME,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KWV1,KWV2,KWV3,KWV4,KWV5,KWV6,KWE1,KWE2,KWF1,KWF2)
+* ----------------------------------------------------------------- *
+*    monitor the data structure
+* ----------------------------------------------------------------- *
+      DIMENSION IX(1),IY(1),IZ(1),NAME(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION KWV1(1),KWV2(1),KWV3(1),KWV4(1)
+      DIMENSION KWV5(1),KWV6(1)
+*                                                                               
+c     open(7,file='monitor')
+      write(7,600) (KPARA(K),K=1,9)
+  600 format(' '//'    ---  Voronoi Diagram Data  ---'//                        
+     +       'KPARA =',9I6) 
+      write(7,601)                                                              
+  601 format('     ---  generators  ---'/)                                      
+      write(7,602)                                                              
+  602 format('   no.       x                 y')                                
+      do 10 i=1,KPARA(7) 
+      write(7,603) i,IX(i),IY(i),IZ(i)
+  603 format(' ',i5,3i18)     
+   10 continue                                                                  
+      write(7,604)                                                              
+  604 format(' '/'    ---  Delaunay edges  ---'/) 
+      write(7,605)                                                              
+  605 format('   no. ksv kev krf klf ksce kscce kece kecce',
+     +       10x,'kve kfe')                    
+      do 20 i=1,4*KPARA(7)
+      write(7,606)                                                              
+     +  i,ksv(i),kev(i),krf(i),klf(i),ksce(i),kscce(i),kece(i),kecce(i)         
+     +  ,kve(i),kfe(i)
+  606 format(' ',5i4,i5,i6,i5,i6,10x,2i5) 
+   20 continue                                                                  
+c     close(7)                                                                  
+      return                                                                    
+      end                                                                       
+      SUBROUTINE SFILT(JV,IX,IY,IZ,IS)
+* ------------------------------------------------------------ *
+*                                                              *
+*     Quick determination of the orientation of four points    *
+*     using single-precision arithmetic                        *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION JV(1),IX(1),IY(1),IZ(1)
+      DATA PRECIS/0.000001/
+* 
+*  ---  convert the data into floating-point numbers  ---
+*
+      DX1=FLOAT(IX(JV(2))-IX(JV(1)))
+      DX2=FLOAT(IX(JV(3))-IX(JV(1)))
+      DX3=FLOAT(IX(JV(4))-IX(JV(1)))
+      DY1=FLOAT(IY(JV(2))-IY(JV(1)))
+      DY2=FLOAT(IY(JV(3))-IY(JV(1)))
+      DY3=FLOAT(IY(JV(4))-IY(JV(1)))
+      DZ1=FLOAT(IZ(JV(2))-IZ(JV(1)))
+      DZ2=FLOAT(IZ(JV(3))-IZ(JV(1)))
+      DZ3=FLOAT(IZ(JV(4))-IZ(JV(1)))
+* 
+*  ---  compute the six terms of the determinant  ---
+*
+      H1=DX1*DY2*DZ3
+      H2=DX2*DY3*DZ1
+      H3=DX3*DY1*DZ2
+      H4=DX3*DY2*DZ1
+      H5=DX2*DY1*DZ3
+      H6=DX1*DY3*DZ2
+*
+*  ---  find the maximum absolute value  ---
+*
+      HMAX=ABS(H1)
+      IF(ABS(H2).GT.HMAX) HMAX=ABS(H2)
+      IF(ABS(H3).GT.HMAX) HMAX=ABS(H3)
+      IF(ABS(H4).GT.HMAX) HMAX=ABS(H4)
+      IF(ABS(H5).GT.HMAX) HMAX=ABS(H5)
+      IF(ABS(H6).GT.HMAX) HMAX=ABS(H6)
+      IF(HMAX.LT.1.0) HMAX=1.0 
+      VTHRE=PRECIS*HMAX
+*
+*  ---  compute the sign of the determinant
+*       if it is reliable                    ---
+*
+      VDET=H1+H2+H3-H4-H5-H6
+      IF(ABS(VDET).LE.VTHRE) THEN
+        IS=0
+      ELSEIF(VDET.GT.0.0) THEN
+        IS=1
+      ELSE
+        IS=-1
+      ENDIF
+      RETURN
+      END
+      SUBROUTINE DRDELA(NOFP,IX,IY,IXYMAX,RADIUS,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KVCOLO,KECOLO)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Draw the Delaunay triangulation                         *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1),KSV(1),KEV(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION KVCOLO(1),KECOLO(1)
+*
+*  ---  plot the input points  ---
+*
+      DO 10 II=1,NOFP
+      CALL DRDOT(IX(II),IY(II),RADIUS)
+   10 CONTINUE
+*
+*  ---  draw the edges  ---
+*
+      DO 20 II=1,KPARA(3)
+      IF(KECOLO(II).EQ.0.OR.KECOLO(II).EQ.2) GOTO 20
+      IVS=KSV(II)
+      IX1=IX(IVS)
+      IY1=IY(IVS)
+      IVE=KEV(II)
+      IX2=IX(IVE)
+      IY2=IY(IVE)
+   !   CALL DRLINE(IX1,IY1,IX2,IY2)
+   20 CONTINUE      
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRFDEL(NOFP,IX,IY,IXYMAX,RADIUS,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  KVCOLO,KECOLO)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Draw the farthest Delaunay triangulation                *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1),KSV(1),KEV(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION KVCOLO(1),KECOLO(1)
+*
+*  ---  plot the input points  ---
+*
+      DO 10 II=1,NOFP
+      CALL DRDOT(IX(II),IY(II),RADIUS)
+   10 CONTINUE
+*
+*  ---  draw the edges  ---
+*
+      DO 20 II=1,KPARA(3)
+      IF(KECOLO(II).EQ.0.OR.KECOLO(II).EQ.1) GOTO 20
+      IVS=KSV(II)
+      IX1=IX(IVS)
+      IY1=IY(IVS)
+      IVE=KEV(II)
+      IX2=IX(IVE)
+      IY2=IY(IVE)
+!      CALL DRLINE(IX1,IY1,IX2,IY2)
+   20 CONTINUE
+*
+      RETURN
+      END
+*
+*
+      SUBROUTINE DRVORO(NOFP,IX,IY,IXYMAX,RADIUS,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KVCOLO,KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT,
+     +  mheight,mwidth)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Draw the ordinary Voronoi diagram                       *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION XVORO(1),YVORO(1)
+      DIMENSION KVCOLO(1),KECOLO(1),KFCOLO(1),KFCENT(1)
+      DIMENSION XEDIRE(1),YEDIRE(1)
+      DATA SCA/2.0/
+*
+*  ---  plot the input points  ---
+*
+      DO 10 II=1,NOFP
+      CALL DRDOT(IX(II),IY(II),RADIUS)
+   10 CONTINUE
+*
+*  ---  draw the edges  ---
+*
+      
+	nline=0
+	
+	DO 20 IEDGE=1,KPARA(3)
+      IF(KECOLO(IEDGE).EQ.0.OR.KECOLO(IEDGE).EQ.2) GOTO 20
+      IFS=KRF(IEDGE)
+      IFE=KLF(IEDGE)
+      IF(KFCENT(IFS).EQ.9.AND.KFCENT(IFE).EQ.9) GOTO 20
+      IF(KECOLO(IEDGE).EQ.3) THEN
+        IF(KFCOLO(IFS).EQ.1.AND.KFCENT(IFS).EQ.9) GOTO 20
+        IF(KFCOLO(IFE).EQ.1.AND.KFCENT(IFE).EQ.9) GOTO 20
+      ENDIF
+      IF(KFCENT(IFS).EQ.9.OR.KFCENT(IFE).EQ.9) THEN
+*
+*  ---  almost infinite edge  ---
+*
+        DX=XEDIRE(IEDGE)
+        DY=YEDIRE(IEDGE)
+        IF(KFCENT(IFS).NE.9) THEN
+*
+*  ---  IFS is a finite vertex  ---
+*
+          JX1=IFIX(XVORO(IFS))
+          JY1=IFIX(YVORO(IFS))
+        ELSE
+*
+*  --- 	IFE is a finite vertex  ---
+*
+          JX1=IFIX(XVORO(IFE))
+          JY1=IFIX(YVORO(IFE))
+          DX=-DX
+          DY=-DY
+        ENDIF
+        JX2=IFIX(SCA*DX*IXYMAX)+JX1
+        JY2=IFIX(SCA*DY*IXYMAX)+JY1
+*
+      ELSEIF(KECOLO(IEDGE).EQ.1) THEN
+*
+*  ---  finite edge  ---
+*
+        JX1=IFIX(XVORO(IFS)) 
+        JY1=IFIX(YVORO(IFS)) 
+        JX2=IFIX(XVORO(IFE)) 
+        JY2=IFIX(YVORO(IFE)) 
+*
+      ELSE
+*
+*  ---  infinite edge  ---
+*
+        DX=XEDIRE(IEDGE)
+        DY=YEDIRE(IEDGE)
+        IF(KFCOLO(IFS).EQ.1) THEN
+*
+*  ---  IFS is a finite vertex  ---
+*
+          JX1=IFIX(XVORO(IFS))
+          JY1=IFIX(YVORO(IFS))
+        ELSE
+*
+*  --- 	IFE is a finite vertex  ---
+*
+          JX1=IFIX(XVORO(IFE))
+          JY1=IFIX(YVORO(IFE))
+          DX=-DX
+          DY=-DY
+        ENDIF
+        JX2=IFIX(SCA*DX*IXYMAX)+JX1
+        JY2=IFIX(SCA*DY*IXYMAX)+JY1
+      ENDIF
+      
+	
+	
+	
+	!•K—v‚ÈƒR[ƒ‹•ª
+	
+	CALL DRLINE(JX1,JY1,JX2,JY2,mheight,mwidth)
+
+
+
+
+
+
+
+
+
+
+
+   20 CONTINUE      
+*
+ 
+	RETURN
+      END
+*
+*
+      SUBROUTINE DRFVOR(NOFP,IX,IY,IXYMAX,RADIUS,
+     +  KPARA,KVE,KFE,KSV,KEV,KRF,KLF,KSCE,KSCCE,KECE,KECCE,
+     +  XVORO,YVORO,KVCOLO,KECOLO,XEDIRE,YEDIRE,KFCOLO,KFCENT)
+* ------------------------------------------------------------ *
+*                                                              *
+*      Draw the farthest-point Voronoi diagram                 *
+*                                                              *
+* ------------------------------------------------------------ *
+      DIMENSION IX(1),IY(1)
+      DIMENSION KPARA(1),KVE(1),KFE(1)
+      DIMENSION KSV(1),KEV(1),KRF(1),KLF(1)
+      DIMENSION KSCE(1),KSCCE(1),KECE(1),KECCE(1)
+      DIMENSION XVORO(1),YVORO(1)
+      DIMENSION KVCOLO(1),KECOLO(1),KFCOLO(1),KFCENT(1)
+      DIMENSION XEDIRE(1),YEDIRE(1)
+      DATA SCA/2.0/
+*
+*  ---  plot the input points  ---
+*
+      DO 10 II=1,NOFP
+      CALL DRDOT(IX(II),IY(II),RADIUS)
+   10 CONTINUE
+*
+*  ---  draw the edges  ---
+*
+      DO 20 IEDGE=1,KPARA(3)
+      IF(KECOLO(IEDGE).EQ.0.OR.KECOLO(IEDGE).EQ.1) GOTO 20
+      IFS=KRF(IEDGE)
+      IFE=KLF(IEDGE)
+      IF(KFCENT(IFS).EQ.9.AND.KFCENT(IFE).EQ.9) GOTO 20
+      IF(KECOLO(IEDGE).EQ.3) THEN
+        IF(KFCOLO(IFS).EQ.-1.AND.KFCENT(IFS).EQ.9) GOTO 20
+        IF(KFCOLO(IFE).EQ.-1.AND.KFCENT(IFE).EQ.9) GOTO 20
+      ENDIF
+*
+      IF(KECOLO(IEDGE).EQ.3) THEN 
+*
+*  ---  infinite edge  ---
+*
+        DX=XEDIRE(IEDGE)
+        DY=YEDIRE(IEDGE)
+        IF(KFCOLO(IFS).EQ.-1) THEN
+*
+*  ---  IFS is a finite vertex  ---
+*
+          JX1=IFIX(XVORO(IFS))
+          JY1=IFIX(YVORO(IFS))
+        ELSE
+*
+*  --- 	IFE is a finite vertex  ---
+*
+          JX1=IFIX(XVORO(IFE))
+          JY1=IFIX(YVORO(IFE))
+          DX=-DX
+          DY=-DY
+        ENDIF
+        JX2=IFIX(SCA*DX*IXYMAX)+JX1
+        JY2=IFIX(SCA*DY*IXYMAX)+JY1
+*
+      ELSEIF(KFCENT(IFS).EQ.9.OR.KFCENT(IFE).EQ.9) THEN
+*
+*  ---  almost infinite edge  ---
+*
+        DX=XEDIRE(IEDGE)
+        DY=YEDIRE(IEDGE)
+        IF(KFCENT(IFS).NE.9) THEN
+*
+*  ---  IFS is a finite vertex  ---
+*
+          JX1=IFIX(XVORO(IFS))
+          JY1=IFIX(YVORO(IFS))
+        ELSE
+*
+*  --- 	IFE is a finite vertex  ---
+*
+          JX1=IFIX(XVORO(IFE))
+          JY1=IFIX(YVORO(IFE))
+          DX=-DX
+          DY=-DY
+        ENDIF
+        JX2=IFIX(SCA*DX*IXYMAX)+JX1
+        JY2=IFIX(SCA*DY*IXYMAX)+JY1
+*
+      ELSE
+*
+*  ---  finite edge  ---
+*
+        JX1=IFIX(XVORO(IFS)) 
+        JY1=IFIX(YVORO(IFS)) 
+        JX2=IFIX(XVORO(IFE)) 
+        JY2=IFIX(YVORO(IFE)) 
+      ENDIF
+ !     CALL DRLINE(JX1,JY1,JX2,JY2)
+   20 CONTINUE      
+*
+      RETURN
+      END
